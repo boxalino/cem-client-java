@@ -3,10 +3,12 @@ package com.boxalino.cem.client;
 import java.lang.reflect.Array;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.FilterInputStream;
 import java.io.InputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.UnsupportedEncodingException;
 
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -35,6 +37,35 @@ import java.util.TimeZone;
  */
 public class HttpClient {
 	/**
+	 * Http response callback
+	 *
+	 * @author nitro
+	 */
+	public static interface Callback {
+		/**
+		 * Called before reading response body
+		 *
+		 * @throws Exception if any error occurs
+		 */
+		public void beginResponse() throws Exception;
+
+		/**
+		 * Called to parse response
+		 *
+		 * @param is body stream
+		 * @throws Exception if any error occurs
+		 */
+		public void parseResponse(InputStream is) throws Exception;
+
+		/**
+		 * Called if an error occurs
+		 *
+		 * @param e exception
+		 */
+		public void error(Exception e);
+	}
+
+	/**
 	 * Http header entry
 	 *
 	 * @author nitro
@@ -59,16 +90,263 @@ public class HttpClient {
 		}
 	}
 
+	/**
+	 * Http cookie entry
+	 *
+	 * @author nitro
+	 */
+	public static class Cookie {
+		/** Netscape draft */
+		public static final int VERSION_0 = 0;
+
+		/** RFC 2109/2965 */
+		public static final int VERSION_1 = 1;
+
+
+		/** Name */
+		private final String name;
+
+		/** Value */
+		private String value;
+
+		/** Domain */
+		private String domain;
+
+		/** Port list */
+		private String portList;
+
+		/** Path */
+		private String path;
+
+		/** Comment */
+		private String comment;
+
+		/** Comment URL */
+		private String commentURL;
+
+		/** Version (0,1) */
+		private int version;
+
+		/** Max age */
+		private long maxAge;
+
+		/** Discard flag */
+		private boolean discard;
+
+		/** Secure flag */
+		private boolean secure;
+
+		/** Meta-data */
+		private String meta = null;
+
+
+		/**
+		 * Constructor
+		 *
+		 * @param name cookie name
+		 * @param value cookie value
+		 */
+		public Cookie(String name, String value) {
+			this(name, value, null, null, null, null, null, VERSION_0, -1, false, false);
+		}
+
+		/**
+		 * Constructor
+		 *
+		 * @param cookie servlet cookie
+		 */
+		public Cookie(javax.servlet.http.Cookie cookie) {
+			this(
+				cookie.getName(),
+				cookie.getValue(),
+				cookie.getDomain(),
+				null,
+				cookie.getPath(),
+				cookie.getComment(),
+				null,
+				cookie.getVersion(),
+				cookie.getMaxAge(),
+				false,
+				cookie.getSecure()
+			);
+		}
+
+		/**
+		 * Constructor
+		 *
+		 * @param name cookie name
+		 * @param value cookie value
+		 * @param domain domain
+		 * @param portList port list
+		 * @param path path
+		 * @param comment comment
+		 * @param commentURL comment url
+		 * @param version version
+		 * @param maxAge maximum age
+		 * @param discard discard
+		 * @param secure secure
+		 */
+		public Cookie(String name, String value, String domain, String portList, String path, String comment, String commentURL, int version, long maxAge, boolean discard, boolean secure) {
+			this.name = name;
+			this.value = value;
+			this.domain = domain;
+			this.portList = portList;
+			this.path = path;
+			this.comment = comment;
+			this.commentURL = commentURL;
+			this.version = version;
+			this.maxAge = maxAge;
+			this.discard = discard;
+			this.secure = secure;
+		}
+
+
+		/**
+		 * {@inheritDoc}
+		 */
+		@Override
+		public int hashCode() {
+			int hash = 11;
+
+			hash = 31 * hash + name.hashCode();
+			hash = 31 * hash + (domain != null ? domain.hashCode() : 0);
+			hash = 31 * hash + (path != null ? path.hashCode() : 0);
+			hash = 31 * hash + (portList != null ? portList.hashCode() : 0);
+			return hash;
+		}
+
+		/**
+		 * {@inheritDoc}
+		 */
+		@Override
+		public boolean equals(Object o) {
+			if (o instanceof Cookie) {
+				Cookie c = (Cookie)o;
+
+				return (
+					name.equals(c.name) &&
+					value.equals(c.value) &&
+					((domain != null && domain.equals(c.domain)) || (domain == null && c.domain == null)) &&
+					((portList != null && portList.equals(c.portList)) || (portList == null && c.portList == null)) &&
+					((path != null && path.equals(c.path)) || (path == null && c.path == null)) &&
+					((comment != null && comment.equals(c.comment)) || (comment == null && c.comment == null)) &&
+					((commentURL != null && commentURL.equals(c.commentURL)) || (commentURL == null && c.commentURL == null)) &&
+					version == c.version &&
+					maxAge == c.maxAge &&
+					discard == c.discard &&
+					secure == c.secure
+				);
+			}
+			return false;
+		}
+
+		/**
+		 * {@inheritDoc}
+		 */
+		@Override
+		public String toString() {
+			if (version > 0) {
+				StringBuilder buffer = new StringBuilder();
+
+				buffer.append(name);
+				buffer.append("=\"");
+				buffer.append(value);
+				buffer.append('"');
+				if (domain != null) {
+					buffer.append(";$Domain=\"");
+					buffer.append(domain);
+					buffer.append('"');
+				}
+				if (portList != null) {
+					buffer.append(";$Port");
+					if (portList.length() > 0) {
+						buffer.append("=\"");
+						buffer.append(portList);
+						buffer.append('"');
+					}
+				}
+				if (path != null) {
+					buffer.append(";$Path=\"");
+					buffer.append(path);
+					buffer.append('"');
+				}
+				return buffer.toString();
+			}
+			return (name + "=" + value);
+		}
+
+
+		/**
+		 * Get cookie name
+		 *
+		 * @return cookie name
+		 */
+		public String getName() {
+			return name;
+		}
+
+		/**
+		 * Get cookie value
+		 *
+		 * @return cookie value
+		 */
+		public String getValue() {
+			return value;
+		}
+
+		/**
+		 * Get cookie meta-data
+		 *
+		 * @return cookie meta-data
+		 */
+		public String getMeta() {
+			return meta;
+		}
+
+		/**
+		 * set cookie meta-data
+		 *
+		 * @param meta cookie meta-data
+		 */
+		public void setMeta(String meta) {
+			this.meta = meta;
+		}
+
+		/**
+		 * Build servlet cookie
+		 *
+		 * @return servlet cookie
+		 */
+		public javax.servlet.http.Cookie toCookie() {
+			javax.servlet.http.Cookie cookie = new javax.servlet.http.Cookie(name, value);
+
+/*			if (domain != null) {
+				cookie.setDomain(domain);
+			}
+			if (path != null) {
+				cookie.setPath(path);
+			}*/
+			cookie.setPath("/");
+			if (comment != null) {
+				cookie.setComment(comment);
+			}
+			cookie.setVersion(version);
+			cookie.setMaxAge((int)(maxAge / 1000));
+			cookie.setSecure(secure);
+			return cookie;
+		}
+	}
+
 
 	/**
 	 * Build complete URL
 	 *
 	 * @param url base url
 	 * @return full url
-	 * @throws Exception if any error occured
+	 * @throws Exception if any error occurs
 	 */
 	public static URL buildURL(String url) throws Exception {
-		return buildURL(url, (Map<String, String[]>)null, null);
+		return buildURL(url, new LinkedHashMap<String, String[]>(), null);
 	}
 
 	/**
@@ -78,13 +356,12 @@ public class HttpClient {
 	 * @param parameters optional parameters
 	 * @param fragment optional fragment
 	 * @return full url
-	 * @throws Exception if any error occured
+	 * @throws Exception if any error occurs
 	 */
 	public static URL buildURL(String url, String [][] parameters, String fragment) throws Exception {
-		Map<String, String[]> _parameters = null;
+		Map<String, String[]> _parameters = new LinkedHashMap<String, String[]>();
 
 		if (parameters != null) {
-			_parameters = new LinkedHashMap<String, String[]>();
 			for (String [] parameter : parameters) {
 				for (int i = 1; i < parameter.length; i++) {
 					add(String.class, _parameters, parameter[0], parameter[i]);
@@ -101,7 +378,7 @@ public class HttpClient {
 	 * @param parameters optional parameters
 	 * @param fragment optional fragment
 	 * @return full url
-	 * @throws Exception if any error occured
+	 * @throws Exception if any error occurs
 	 */
 	public static URL buildURL(String url, Map<String, String[]> parameters, String fragment) throws Exception {
 		StringBuilder buffer = new StringBuilder();
@@ -273,12 +550,29 @@ public class HttpClient {
 	}
 
 	/**
+	 * Get first http header value if any
+	 *
+	 * @param name header name
+	 * @return first value or null if none
+	 */
+	public String getHeader(String name) {
+		return (responseHeaders.containsKey(name.toLowerCase()) ? responseHeaders.get(name.toLowerCase())[0].value : null);
+	}
+
+	/**
 	 * Get last http headers
 	 *
 	 * @return http headers
 	 */
-	public Map<String, Header[]> getHeaders() {
-		return Collections.unmodifiableMap(responseHeaders);
+	public List<Header> getHeaders() {
+		List<Header> list = new ArrayList<Header>();
+
+		for (Header [] headers : responseHeaders.values()) {
+			for (Header header : headers) {
+				list.add(header);
+			}
+		}
+		return Collections.unmodifiableList(list);
 	}
 
 	/**
@@ -286,15 +580,15 @@ public class HttpClient {
 	 *
 	 * @return cookie names
 	 */
-	public Set<String> getCookies() {
-		Set<String> set = new LinkedHashSet<String>();
+	public List<Cookie> getCookies() {
+		List<Cookie> list = new ArrayList<Cookie>();
 
 		for (Map.Entry<String, Cookie> entry : cookies.entrySet()) {
 			if ("remote".equals(entry.getValue().getMeta())) {
-				set.add(entry.getKey());
+				list.add(entry.getValue());
 			}
 		}
-		return Collections.unmodifiableSet(set);
+		return Collections.unmodifiableList(list);
 	}
 
 	/**
@@ -320,10 +614,29 @@ public class HttpClient {
 	/**
 	 * Set cookie
 	 *
+	 * @param name cookie name
+	 * @param value cookie value
+	 */
+	public void setCookie(String name, String value) {
+		cookies.put(name, new Cookie(name, value));
+	}
+
+	/**
+	 * Set cookie
+	 *
 	 * @param cookie cookie
 	 */
 	public void setCookie(Cookie cookie) {
 		cookies.put(cookie.getName(), cookie);
+	}
+
+	/**
+	 * Set cookie (from servlet)
+	 *
+	 * @param cookie cookie
+	 */
+	public void setCookie(javax.servlet.http.Cookie cookie) {
+		cookies.put(cookie.getName(), new Cookie(cookie));
 	}
 
 	/**
@@ -342,11 +655,19 @@ public class HttpClient {
 	 * @param url http url
 	 * @param parameters optional http-get parameters
 	 * @param headers optional http headers
+	 * @param callback optional response callback
 	 * @return last http code
-	 * @throws Exception if any error occured
 	 */
-	public int get(String url, String [][] parameters, Header [] headers) throws Exception {
-		process("GET", HttpClient.buildURL(url, parameters, null), headers, null);
+	public int get(String url, String [][] parameters, Header [] headers, Callback callback) {
+		try {
+			process("GET", HttpClient.buildURL(url, parameters, null), headers, null, callback);
+		} catch (Exception e) {
+			if (callback != null) {
+				callback.error(e);
+			} else {
+				throw new RuntimeException(e);
+			}
+		}
 		return responseCode;
 	}
 
@@ -356,11 +677,19 @@ public class HttpClient {
 	 * @param url http url
 	 * @param parameters optional http-get parameters
 	 * @param headers optional http headers
+	 * @param callback optional response callback
 	 * @return last http code
-	 * @throws Exception if any error occured
 	 */
-	public int get(String url, Map<String, String[]> parameters, Header [] headers) throws Exception {
-		process("GET", HttpClient.buildURL(url, parameters, null), headers, null);
+	public int get(String url, Map<String, String[]> parameters, Header [] headers, Callback callback) {
+		try {
+			process("GET", HttpClient.buildURL(url, parameters, null), headers, null, callback);
+		} catch (Exception e) {
+			if (callback != null) {
+				callback.error(e);
+			} else {
+				throw new RuntimeException(e);
+			}
+		}
 		return responseCode;
 	}
 
@@ -371,13 +700,20 @@ public class HttpClient {
 	 * @param contentType request content-type
 	 * @param is request body
 	 * @param headers optional http headers
+	 * @param callback optional response callback
 	 * @return last http code
-	 * @throws Exception if any error occured
 	 */
-	public int put(String url, String contentType, InputStream is, Header [] headers) throws Exception {
-		headers = Arrays.copyOf(headers, headers.length + 1);
-		headers[headers.length - 1] = new Header("Content-Type", contentType);
-		process("PUT", HttpClient.buildURL(url), headers, is);
+	public int put(String url, String contentType, InputStream is, Header [] headers, Callback callback) {
+		try {
+			headers = add(Header.class, headers, new Header("Content-Type", contentType));
+			process("PUT", HttpClient.buildURL(url), headers, is, callback);
+		} catch (Exception e) {
+			if (callback != null) {
+				callback.error(e);
+			} else {
+				throw new RuntimeException(e);
+			}
+		}
 		return responseCode;
 	}
 
@@ -388,13 +724,20 @@ public class HttpClient {
 	 * @param contentType request content-type
 	 * @param is request body
 	 * @param headers optional http headers
+	 * @param callback optional response callback
 	 * @return last http code
-	 * @throws Exception if any error occured
 	 */
-	public int post(String url, String contentType, InputStream is, Header [] headers) throws Exception {
-		headers = Arrays.copyOf(headers, headers.length + 1);
-		headers[headers.length - 1] = new Header("Content-Type", contentType);
-		process("POST", HttpClient.buildURL(url), headers, is);
+	public int post(String url, String contentType, InputStream is, Header [] headers, Callback callback) {
+		try {
+			headers = add(Header.class, headers, new Header("Content-Type", contentType));
+			process("POST", HttpClient.buildURL(url), headers, is, callback);
+		} catch (Exception e) {
+			if (callback != null) {
+				callback.error(e);
+			} else {
+				throw new RuntimeException(e);
+			}
+		}
 		return responseCode;
 	}
 
@@ -404,11 +747,11 @@ public class HttpClient {
 	 * @param url http url
 	 * @param parameters optional http-get parameters
 	 * @param headers optional http headers
+	 * @param callback optional response callback
 	 * @return last http code
-	 * @throws Exception if any error occured
 	 */
-	public int postFields(String url, String [][] parameters, Header [] headers) throws Exception {
-		return postFields(url, parameters, "UTF-8", headers);
+	public int postFields(String url, String [][] parameters, Header [] headers, Callback callback) {
+		return postFields(url, parameters, "UTF-8", headers, callback);
 	}
 
 	/**
@@ -417,11 +760,11 @@ public class HttpClient {
 	 * @param url http url
 	 * @param parameters optional http-get parameters
 	 * @param headers optional http headers
+	 * @param callback optional response callback
 	 * @return last http code
-	 * @throws Exception if any error occured
 	 */
-	public int postFields(String url, Map<String, String[]> parameters, Header [] headers) throws Exception {
-		return postFields(url, parameters, "UTF-8", headers);
+	public int postFields(String url, Map<String, String[]> parameters, Header [] headers, Callback callback) {
+		return postFields(url, parameters, "UTF-8", headers, callback);
 	}
 
 	/**
@@ -431,34 +774,42 @@ public class HttpClient {
 	 * @param parameters optional http-get parameters
 	 * @param charset request character set
 	 * @param headers optional http headers
+	 * @param callback optional response callback
 	 * @return last http code
-	 * @throws Exception if any error occured
 	 */
-	public int postFields(String url, String [][] parameters, String charset, Header [] headers) throws Exception {
-		StringBuilder body = new StringBuilder();
+	public int postFields(String url, String [][] parameters, String charset, Header [] headers, Callback callback) {
+		try {
+			StringBuilder body = new StringBuilder();
 
-		if (parameters != null) {
-			int j = 0;
+			if (parameters != null) {
+				int j = 0;
 
-			for (String [] parameter : parameters) {
-				for (int i = 1; i < parameter.length; i++) {
-					if (j++ > 0) {
-						body.append('&');
+				for (String [] parameter : parameters) {
+					for (int i = 1; i < parameter.length; i++) {
+						if (j++ > 0) {
+							body.append('&');
+						}
+						body.append(URLEncoder.encode(parameter[0], charset));
+						body.append('=');
+						body.append(URLEncoder.encode(parameter[i], charset));
 					}
-					body.append(URLEncoder.encode(parameter[0], charset));
-					body.append('=');
-					body.append(URLEncoder.encode(parameter[i], charset));
 				}
 			}
+			headers = add(Header.class, headers, new Header("Content-Type", "application/x-www-form-urlencoded; charset=" + charset));
+			process(
+				"POST",
+				HttpClient.buildURL(url),
+				headers,
+				new ByteArrayInputStream(body.toString().getBytes(charset)),
+				callback
+			);
+		} catch (Exception e) {
+			if (callback != null) {
+				callback.error(e);
+			} else {
+				throw new RuntimeException(e);
+			}
 		}
-		headers = Arrays.copyOf(headers, headers.length + 1);
-		headers[headers.length - 1] = new Header("Content-Type", "application/x-www-form-urlencoded; charset=" + charset);
-		process(
-			"POST",
-			HttpClient.buildURL(url),
-			headers,
-			new ByteArrayInputStream(body.toString().getBytes(charset))
-		);
 		return responseCode;
 	}
 
@@ -469,34 +820,42 @@ public class HttpClient {
 	 * @param parameters optional http-get parameters
 	 * @param charset request character set
 	 * @param headers optional http headers
+	 * @param callback optional response callback
 	 * @return last http code
-	 * @throws Exception if any error occured
 	 */
-	public int postFields(String url, Map<String, String[]> parameters, String charset, Header [] headers) throws Exception {
-		StringBuilder body = new StringBuilder();
+	public int postFields(String url, Map<String, String[]> parameters, String charset, Header [] headers, Callback callback) {
+		try {
+			StringBuilder body = new StringBuilder();
 
-		if (parameters != null) {
-			int i = 0;
+			if (parameters != null) {
+				int i = 0;
 
-			for (Map.Entry<String, String[]> parameter : parameters.entrySet()) {
-				for (String value : parameter.getValue()) {
-					if (i++ > 0) {
-						body.append('&');
+				for (Map.Entry<String, String[]> parameter : parameters.entrySet()) {
+					for (String value : parameter.getValue()) {
+						if (i++ > 0) {
+							body.append('&');
+						}
+						body.append(URLEncoder.encode(parameter.getKey(), charset));
+						body.append('=');
+						body.append(URLEncoder.encode(value, charset));
 					}
-					body.append(URLEncoder.encode(parameter.getKey(), charset));
-					body.append('=');
-					body.append(URLEncoder.encode(value, charset));
 				}
 			}
+			headers = add(Header.class, headers, new Header("Content-Type", "application/x-www-form-urlencoded; charset=" + charset));
+			process(
+				"POST",
+				HttpClient.buildURL(url),
+				headers,
+				new ByteArrayInputStream(body.toString().getBytes(charset)),
+				callback
+			);
+		} catch (Exception e) {
+			if (callback != null) {
+				callback.error(e);
+			} else {
+				throw new RuntimeException(e);
+			}
 		}
-		headers = Arrays.copyOf(headers, headers.length + 1);
-		headers[headers.length - 1] = new Header("Content-Type", "application/x-www-form-urlencoded; charset=" + charset);
-		process(
-			"POST",
-			HttpClient.buildURL(url),
-			headers,
-			new ByteArrayInputStream(body.toString().getBytes(charset))
-		);
 		return responseCode;
 	}
 
@@ -508,10 +867,13 @@ public class HttpClient {
 	 * @param url http url
 	 * @param headers optional request headers
 	 * @param is optional request body
+	 * @param callback optional response callback
 	 * @throws Exception if any error occurs
 	 */
-	public void process(String method, URL url, Header [] headers, InputStream is) throws Exception {
+	public void process(String method, URL url, Header [] headers, InputStream is, Callback callback) throws Exception {
 		long time = System.currentTimeMillis();
+		byte[] buffer = new byte[4096];
+		int s;
 
 		responseCode = 0;
 		responseStatus = null;
@@ -564,12 +926,10 @@ public class HttpClient {
 		// stream request body
 		if (is != null) {
 			OutputStream os = connection.getOutputStream();
-			byte[] buffer = new byte[4096];
-			int br;
 
 			try {
-				while ((br = is.read(buffer)) >= 0) {
-					os.write(buffer);
+				while ((s = is.read(buffer)) >= 0) {
+					os.write(buffer, 0, s);
 				}
 			} finally {
 				os.close();
@@ -580,29 +940,41 @@ public class HttpClient {
 		responseCode = connection.getResponseCode();
 		responseStatus = connection.getResponseMessage();
 		for (Map.Entry<String, List<String>> entry : connection.getHeaderFields().entrySet()) {
-			Header [] list = new Header[entry.getValue().size()];
-			int i = 0;
+			if (entry.getKey() != null) {
+				Header [] list = new Header[entry.getValue().size()];
+				int i = 0;
 
-			for (String value : entry.getValue()) {
-				list[i++] = new Header(entry.getKey().toLowerCase(), value);
-			}
-			responseHeaders.put(entry.getKey().toLowerCase(), list);
-
-			if ("set-cookie".equalsIgnoreCase(entry.getKey()) || "set-cookie2".equalsIgnoreCase(entry.getKey())) {
 				for (String value : entry.getValue()) {
-					for (Cookie cookie : parseCookieHeader(value)) {
-						cookie.setMeta("remote");
-						setCookie(cookie);
+					list[i++] = new Header(entry.getKey().toLowerCase(), value);
+				}
+				responseHeaders.put(entry.getKey().toLowerCase(), list);
+
+				if ("set-cookie".equalsIgnoreCase(entry.getKey()) || "set-cookie2".equalsIgnoreCase(entry.getKey())) {
+					for (String value : entry.getValue()) {
+						for (Cookie cookie : parseCookieHeader(value)) {
+							cookie.setMeta("remote");
+							setCookie(cookie);
+						}
 					}
 				}
 			}
 		}
 
+		// notify callback
+		if (callback != null) {
+			callback.beginResponse();
+		}
+
 		// stream response body
 		is = connection.getInputStream();
 		if (is != null) {
+			is = new CountingInputStream(is);
 			try {
-				parseResponse(new CountingInputStream(is));
+				if (callback != null) {
+					callback.parseResponse(is);
+				} else {
+					while ((s = is.read(buffer)) >= 0);
+				}
 			} finally {
 				is.close();
 			}
@@ -828,15 +1200,6 @@ public class HttpClient {
 		return Collections.unmodifiableList(list);
 	}
 
-	/**
-	 * Called to parse response
-	 *
-	 * @param is body stream
-	 * @throws Exception if any error occurs
-	 */
-	public void parseResponse(InputStream is) throws Exception {
-	}
-
 
 	/**
 	 * Add a value in existing multi-map
@@ -857,6 +1220,25 @@ public class HttpClient {
 		}
 		list[list.length - 1] = value;
 		map.put(key, list);
+	}
+
+	/**
+	 * Add a value in existing array
+	 *
+	 * @param clazz value class
+	 * @param list value array
+	 * @param value value
+	 * @return new array
+	 */
+	@SuppressWarnings("unchecked")
+	protected static <T> T [] add(Class<T> clazz, T [] list, T value) {
+		if (list == null) {
+			list = (T[])Array.newInstance(clazz, 1);
+		} else {
+			list = Arrays.copyOf(list, list.length + 1);
+		}
+		list[list.length - 1] = value;
+		return list;
 	}
 
 
@@ -927,6 +1309,205 @@ public class HttpClient {
 				HttpClient.this.size += s;
 			}
 			return s;
+		}
+	}
+
+	/**
+	 * Base64 encoding/decoding
+	 *
+	 * @author nitro
+	 */
+	private static class Base64Encoder {
+		/** Base64 encoding table */
+		private static char [] b64EncodeTable = new char[] {
+			'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
+			'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
+			'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '+', '/'
+		};
+
+		/** Base64 decoding table */
+		private static int [] b64DecodeTable = new int[127];
+
+		/** Base64 table initialization */
+		static {
+			for (int i = 0; i < 127; i++) {
+				b64DecodeTable[i] = -1;
+			}
+			for (int i = 0; i < 64; i++) {
+				b64DecodeTable[(b64EncodeTable[i] & 0x7f)] = i;
+			}
+		}
+
+
+		/**
+		 * Constructor
+		 *
+		 */
+		private Base64Encoder() {
+		}
+
+
+		/**
+		 * Encode input as base64 (utf-8 string)
+		 *
+		 * @param input string data
+		 * @return encoded text
+		 */
+		public static String encodeUtf8(String input) {
+			try {
+				return encode(input, "UTF-8");
+			} catch (UnsupportedEncodingException e) {
+				throw new RuntimeException(e);
+			}
+		}
+
+		/**
+		 * Decode input in base64 (utf-8 string)
+		 *
+		 * @param input base64 input
+		 * @return string data
+		 */
+		public static String decodeUtf8(String input) {
+			try {
+				return decode(input, "UTF-8");
+			} catch (UnsupportedEncodingException e) {
+				throw new RuntimeException(e);
+			}
+		}
+
+
+		/**
+		 * Encode input as base64 (string)
+		 *
+		 * @param input string data
+		 * @param charsetName charset name
+		 * @return encoded text
+		 * @throws UnsupportedEncodingException if charset is not supported
+		 */
+		public static String encode(String input, String charsetName) throws UnsupportedEncodingException {
+			return encode(input.getBytes(charsetName));
+		}
+
+		/**
+		 * Decode input in base64 (string)
+		 *
+		 * @param input base64 input
+		 * @param charsetName charset name
+		 * @return string data
+		 * @throws UnsupportedEncodingException if charset is not supported
+		 */
+		public static String decode(String input, String charsetName) throws UnsupportedEncodingException {
+			return new String(decode(input), charsetName);
+		}
+
+
+		/**
+		 * Encode input as base64
+		 *
+		 * @param input raw data
+		 * @return encoded text
+		 */
+		public static String encode(byte [] input) {
+			StringBuilder buffer = new StringBuilder();
+			int current = 0;
+			int bits = 0;
+
+			for (int i = 0; i < input.length; i++) {
+				int value = input[i] & 0xff;
+
+				if (value >= 0 && value <= 0xff) {
+					current |= value << (16 - bits);
+					bits += 8;
+
+					if (bits == 24) {
+						buffer.append(b64EncodeTable[(current >> 18) & 0x3f]);
+						buffer.append(b64EncodeTable[(current >> 12) & 0x3f]);
+						buffer.append(b64EncodeTable[(current >> 6) & 0x3f]);
+						buffer.append(b64EncodeTable[(current >> 0) & 0x3f]);
+
+						bits = 0;
+						current = 0;
+					}
+				}
+			}
+			switch (bits) {
+			case 8:
+				buffer.append(b64EncodeTable[(current >> 18) & 0x3f]);
+				buffer.append(b64EncodeTable[(current >> 12) & 0x3f]);
+				buffer.append('=');
+				buffer.append('=');
+				break;
+
+			case 16:
+				buffer.append(b64EncodeTable[(current >> 18) & 0x3f]);
+				buffer.append(b64EncodeTable[(current >> 12) & 0x3f]);
+				buffer.append(b64EncodeTable[(current >> 6) & 0x3f]);
+				buffer.append('=');
+				break;
+
+			case 24:
+				buffer.append(b64EncodeTable[(current >> 18) & 0x3f]);
+				buffer.append(b64EncodeTable[(current >> 12) & 0x3f]);
+				buffer.append(b64EncodeTable[(current >> 6) & 0x3f]);
+				buffer.append(b64EncodeTable[(current >> 0) & 0x3f]);
+				break;
+			}
+			return buffer.toString();
+		}
+
+		/**
+		 * Decode input in base64
+		 *
+		 * @param input base64 input
+		 * @return raw data
+		 */
+		public static byte [] decode(String input) {
+			ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+			int current = 0;
+			int bits = 0;
+
+			for (int i = 0; i < input.length(); i++) {
+				int value = input.charAt(i);
+
+				if (value >= 0 && value <= 0x7f && b64DecodeTable[value] >= 0) {
+					current |= (b64DecodeTable[value] & 0x3f) << (18 - bits);
+					bits += 6;
+
+					if (bits == 24) {
+						buffer.write((current >> 16) & 0xff);
+						buffer.write((current >> 8) & 0xff);
+						buffer.write((current >> 0) & 0xff);
+
+						bits = 0;
+						current = 0;
+					}
+				}
+			}
+	//		System.out.println("bits:" + bits + ", current=" + Integer.toString(current, 16));
+			switch (bits) {
+			case 0:
+	//		case 6:
+				break;
+
+			case 12:
+				buffer.write((current >> 16) & 0xff);
+				break;
+
+			case 18:
+				buffer.write((current >> 16) & 0xff);
+				buffer.write((current >> 8) & 0xff);
+				break;
+
+			case 24:
+				buffer.write((current >> 16) & 0xff);
+				buffer.write((current >> 8) & 0xff);
+				buffer.write((current >> 0) & 0xff);
+				break;
+
+			default:
+				throw new IllegalStateException("invalid base64-encoded data (" + bits + ")");
+			}
+			return buffer.toByteArray();
 		}
 	}
 }

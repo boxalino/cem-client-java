@@ -76,9 +76,9 @@
 	<target name="compile" depends="config">
 		<echo>compiling ${ant.project.name}...</echo>
 		<path id="libpath">
-			<!--fileset dir="lib">
+			<fileset dir="lib">
 				<include name="*.jar"/>
-			</fileset-->
+			</fileset>
 		</path>
 		<mkdir dir="classes" />
 		<javac includeAntRuntime="false" sourcepath="" srcdir="src" destdir="classes" classpathref="libpath" source="1.5" target="1.5" debug="${buildopt_debug}" debuglevel="${buildopt_debuglevel}" nowarn="${buildopt_nowarn}" optimize="${buildopt_optimize}" deprecation="${buildopt_deprecation}" verbose="${buildopt_verbose}">
@@ -96,6 +96,33 @@
 		<jar destfile="build/boxalino-cem-client.jar">
 			<fileset dir="classes" includes="**/*" />
 		</jar>
+	</target>
+
+	<target name="clean-doc" depends="config">
+		<delete includeemptydirs="true" failonerror="false">
+			<fileset dir="docs/javadoc" includes="**/*"/>
+		</delete>
+	</target>
+	<target name="public-doc" depends="clean-doc">
+		<mkdir dir="docs" />
+		<mkdir dir="docs/javadoc" />
+		<path id="javadocpath">
+			<pathelement path="classes"/>
+			<fileset dir="lib">
+				<include name="**/*.jar"/>
+			</fileset>
+		</path>
+		<javadoc noindex="true" notree="true" nohelp="true" public="yes"
+				destdir="docs/javadoc"
+				classpathref="javadocpath"
+				Windowtitle="Boxalino CEM API"
+				Header="Boxalino CEM API"
+				Footer="(C) Boxalino AG">
+
+			<fileset dir="src/">
+				<include name="**/*.java" />
+			</fileset>
+		</javadoc>
 	</target>
 
 
