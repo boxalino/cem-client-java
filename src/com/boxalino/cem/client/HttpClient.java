@@ -14,6 +14,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
+import java.net.SocketTimeoutException;
 
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -37,35 +38,6 @@ import java.util.TimeZone;
  */
 public class HttpClient {
 	/**
-	 * Http response callback
-	 *
-	 * @author nitro
-	 */
-	public static interface Callback {
-		/**
-		 * Called before reading response body
-		 *
-		 * @throws Exception if any error occurs
-		 */
-		public void beginResponse() throws Exception;
-
-		/**
-		 * Called to parse response
-		 *
-		 * @param is body stream
-		 * @throws Exception if any error occurs
-		 */
-		public void parseResponse(InputStream is) throws Exception;
-
-		/**
-		 * Called if an error occurs
-		 *
-		 * @param e exception
-		 */
-		public void error(Exception e);
-	}
-
-	/**
 	 * Http header entry
 	 *
 	 * @author nitro
@@ -81,12 +53,64 @@ public class HttpClient {
 		/**
 		 * Constructor
 		 *
+		 */
+		private Header() {
+			this(null, null);
+		}
+
+		/**
+		 * Constructor
+		 *
 		 * @param name header name
 		 * @param value header value
 		 */
 		public Header(String name, String value) {
 			this.name = name;
 			this.value = value;
+		}
+
+
+		/**
+		 * Compute a hash code for this object.
+		 *
+		 * @return hash code
+		 */
+		@Override
+		public int hashCode() {
+			int hash = 11;
+
+			hash = 31 * hash + name.hashCode();
+			return hash;
+		}
+
+		/**
+		 * Test if given object is equal to this.
+		 *
+		 * @param o other object to test
+		 * @return true if other object is equal (name, value)
+		 */
+		@Override
+		public boolean equals(Object o) {
+			if (o instanceof Header) {
+				Header h = (Header)o;
+
+				return (name.equals(h.name) && value.equals(h.value));
+			}
+			return false;
+		}
+
+
+		/**
+		 * Return a string representation of this object for debug purpose.
+		 *
+		 * @return string representation
+		 */
+		@Override
+		public String toString() {
+			return (
+				"{name=" + name +
+				",value=" + value + "}"
+			);
 		}
 	}
 
@@ -97,10 +121,10 @@ public class HttpClient {
 	 */
 	public static class Cookie {
 		/** Netscape draft */
-		public static final int VERSION_0 = 0;
+		private static final int VERSION_0 = 0;
 
 		/** RFC 2109/2965 */
-		public static final int VERSION_1 = 1;
+		private static final int VERSION_1 = 1;
 
 
 		/** Name */
@@ -139,6 +163,14 @@ public class HttpClient {
 		/** Meta-data */
 		private String meta = null;
 
+
+		/**
+		 * Constructor
+		 *
+		 */
+		private Cookie() {
+			this(null, null);
+		}
 
 		/**
 		 * Constructor
@@ -202,21 +234,23 @@ public class HttpClient {
 
 
 		/**
-		 * {@inheritDoc}
+		 * Compute a hash code for this object.
+		 *
+		 * @return hash code
 		 */
 		@Override
 		public int hashCode() {
 			int hash = 11;
 
 			hash = 31 * hash + name.hashCode();
-			hash = 31 * hash + (domain != null ? domain.hashCode() : 0);
-			hash = 31 * hash + (path != null ? path.hashCode() : 0);
-			hash = 31 * hash + (portList != null ? portList.hashCode() : 0);
 			return hash;
 		}
 
 		/**
-		 * {@inheritDoc}
+		 * Test if given object is equal to this.
+		 *
+		 * @param o other object to test
+		 * @return true if other object is equal (name, value, domain, portList, path, comment, commentURL, version, maxAge, discard, secure)
 		 */
 		@Override
 		public boolean equals(Object o) {
@@ -241,7 +275,9 @@ public class HttpClient {
 		}
 
 		/**
-		 * {@inheritDoc}
+		 * Return a string representation of the cookie compatible with http headers.
+		 *
+		 * @return string representation
 		 */
 		@Override
 		public String toString() {
@@ -335,6 +371,35 @@ public class HttpClient {
 			cookie.setSecure(secure);
 			return cookie;
 		}
+	}
+
+	/**
+	 * Http response callback
+	 *
+	 * @author nitro
+	 */
+	public static interface Callback {
+		/**
+		 * Called before reading response body
+		 *
+		 * @throws Exception if any error occurs
+		 */
+		public void beginResponse() throws Exception;
+
+		/**
+		 * Called to parse response
+		 *
+		 * @param is body stream
+		 * @throws Exception if any error occurs
+		 */
+		public void parseResponse(InputStream is) throws Exception;
+
+		/**
+		 * Called if an error occurs
+		 *
+		 * @param e exception
+		 */
+		public void error(Exception e);
 	}
 
 
@@ -434,41 +499,44 @@ public class HttpClient {
 	}
 
 
-	/** Authentication username */
+	/** Authentication username, defaults to null */
 	public String username = null;
 
-	/** Authentication password */
+	/** Authentication password, defaults to null */
 	public String password = null;
 
-	/** Connect timeout [ms] */
-	public int connectTimeout = 0;
+	/** Connect timeout, defaults to 1000 [ms] */
+	public int connectTimeout = 1000;
 
-	/** Maximum connect tries */
-	public int connectMaxTries = 0;
+	/** Maximum connect tries, defaults to 5 */
+	public int connectMaxTries = 5;
 
-	/** Read timeout [ms] */
-	public int readTimeout = 0;
+	/** Read timeout, defaults to 15000 [ms] */
+	public int readTimeout = 15000;
 
 	/** Request headers */
-	protected final Map<String, Header[]> requestHeaders = new LinkedHashMap<String, Header[]>();
+	private final Map<String, Header[]> requestHeaders = new LinkedHashMap<String, Header[]>();
+
+	/** Connect tries */
+	private int connectTries = 0;
 
 	/** Process time */
-	protected long time = 0;
+	private long time = 0;
 
 	/** Response code */
-	protected int responseCode = 0;
+	private int responseCode = 0;
 
 	/** Response status */
-	protected String responseStatus = null;
+	private String responseStatus = null;
 
 	/** Response headers */
-	protected final Map<String, Header[]> responseHeaders = new LinkedHashMap<String, Header[]>();
+	private final Map<String, Header[]> responseHeaders = new LinkedHashMap<String, Header[]>();
 
 	/** Response size */
-	protected long size = 0;
+	private long size = 0;
 
 	/** Cookies */
-	protected final Map<String, Cookie> cookies = new LinkedHashMap<String, Cookie>();
+	private final Map<String, Cookie> cookies = new LinkedHashMap<String, Cookie>();
 
 
 	/**
@@ -871,10 +939,12 @@ public class HttpClient {
 	 * @throws Exception if any error occurs
 	 */
 	public void process(String method, URL url, Header [] headers, InputStream is, Callback callback) throws Exception {
-		long time = System.currentTimeMillis();
+		long beginTime = System.currentTimeMillis();
 		byte[] buffer = new byte[4096];
 		int s;
 
+		time = 0;
+		connectTries = 0;
 		responseCode = 0;
 		responseStatus = null;
 		responseHeaders.clear();
@@ -921,7 +991,15 @@ public class HttpClient {
 		}
 
 		// connect to server
-		connection.connect();
+		boolean connected = false;
+
+		do {
+			connectTries++;
+			try {
+				connection.connect();
+				connected = true;
+			} catch (SocketTimeoutException e) { }
+		} while (!connected && connectTries < connectMaxTries);
 
 		// stream request body
 		if (is != null) {
@@ -980,7 +1058,7 @@ public class HttpClient {
 			}
 		}
 
-		this.time = System.currentTimeMillis() - time;
+		time = System.currentTimeMillis() - beginTime;
 	}
 
 
@@ -997,7 +1075,7 @@ public class HttpClient {
 	 *
 	 * @return cookie header or null if none
 	 */
-	public String buildCookieHeader() {
+	private String buildCookieHeader() {
 		if (cookies.size() > 0) {
 			StringBuilder buffer = new StringBuilder();
 
@@ -1018,7 +1096,7 @@ public class HttpClient {
 	 * @param header cookie header
 	 * @return parsed cookies
 	 */
-	public List<Cookie> parseCookieHeader(String header) {
+	private List<Cookie> parseCookieHeader(String header) {
 		List<Cookie> list = new ArrayList<Cookie>();
 
 		// segment http header and find version
@@ -1483,10 +1561,9 @@ public class HttpClient {
 					}
 				}
 			}
-	//		System.out.println("bits:" + bits + ", current=" + Integer.toString(current, 16));
 			switch (bits) {
 			case 0:
-	//		case 6:
+//			case 6:
 				break;
 
 			case 12:

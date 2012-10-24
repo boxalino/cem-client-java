@@ -4,6 +4,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 
 import java.net.URL;
+import java.net.URLEncoder;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -14,6 +15,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
+import java.util.concurrent.Callable;
+import java.util.concurrent.Future;
+import java.util.concurrent.FutureTask;
+
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import java.util.zip.GZIPInputStream;
@@ -32,21 +38,24 @@ import org.w3c.dom.NodeList;
 
 import org.xml.sax.InputSource;
 
+import com.boxalino.cem.client.json.JsonArray;
+import com.boxalino.cem.client.json.JsonObject;
+
 
 /**
- * Boxalino CEM API Client
+ * Boxalino CEM API Client.
  *
  * @author nitro
  */
 public class ApiClient extends HttpClient {
 	/** Document builder factory */
-	protected static final DocumentBuilderFactory dbf;
+	private static final DocumentBuilderFactory dbf;
 
 	/** Document builder factory */
-	protected static final DocumentBuilder db;
+	private static final DocumentBuilder db;
 
 	/** Proxy hidden headers */
-	protected static final Set<String> hiddenProxyHeaders;
+	private static final Set<String> hiddenProxyHeaders;
 
 	/** Static initializer */
 	static {
@@ -94,7 +103,7 @@ public class ApiClient extends HttpClient {
 	 *
 	 * @author nitro
 	 */
-	public class Page {
+	public static class Page {
 		/** API version (x.y.z) */
 		public final String apiVersion;
 
@@ -136,7 +145,7 @@ public class ApiClient extends HttpClient {
 
 
 		/**
-		 * Constructor
+		 * Constructor.
 		 *
 		 */
 		private Page() {
@@ -156,7 +165,7 @@ public class ApiClient extends HttpClient {
 		}
 
 		/**
-		 * Constructor
+		 * Constructor.
 		 *
 		 * @param element xml element
 		 */
@@ -222,7 +231,9 @@ public class ApiClient extends HttpClient {
 
 
 		/**
-		 * {@inheritDoc}
+		 * Return a string representation of this object for debug purpose.
+		 *
+		 * @return string representation
 		 */
 		@Override
 		public String toString() {
@@ -245,7 +256,7 @@ public class ApiClient extends HttpClient {
 
 
 		/**
-		 * Check if block exists
+		 * Check if block exists.
 		 *
 		 * @param name block name
 		 * @return true if block exists
@@ -255,7 +266,7 @@ public class ApiClient extends HttpClient {
 		}
 
 		/**
-		 * Get block content
+		 * Get block content.
 		 *
 		 * @param name block name
 		 * @return block content
@@ -265,47 +276,189 @@ public class ApiClient extends HttpClient {
 		}
 	}
 
+	/**
+	 * A transaction item (basket/checkout)
+	 *
+	 * @author nitro
+	 */
+	public static class TransactionItem {
+		/** Item identifier */
+		public final String id;
+
+		/** Item price (per unit) */
+		public final double price;
+
+		/** Item quantity */
+		public final int quantity;
+
+		/** Item name (optional) */
+		public final String name;
+
+		/** Item widget (optional) */
+		public final String widget;
+
+
+		/**
+		 * Constructor.
+		 *
+		 */
+		private TransactionItem() {
+			this(null, 0, 0, null, null);
+		}
+
+		/**
+		 * Constructor (quantity = 1).
+		 *
+		 * @param id item identifier
+		 * @param price item price
+		 */
+		public TransactionItem(String id, double price) {
+			this(id, price, 1, null, null);
+		}
+
+		/**
+		 * Constructor.
+		 *
+		 * @param id item identifier
+		 * @param price item price
+		 * @param quantity item quantity
+		 */
+		public TransactionItem(String id, double price, int quantity) {
+			this(id, price, quantity, null, null);
+		}
+
+		/**
+		 * Constructor.
+		 *
+		 * @param id item identifier
+		 * @param price item price
+		 * @param quantity item quantity
+		 * @param name item name
+		 */
+		public TransactionItem(String id, double price, int quantity, String name) {
+			this(id, price, quantity, name, null);
+		}
+
+		/**
+		 * Constructor.
+		 *
+		 * @param id item identifier
+		 * @param price item price
+		 * @param quantity item quantity
+		 * @param name item name
+		 * @param widget facilitator widget
+		 */
+		public TransactionItem(String id, double price, int quantity, String name, String widget) {
+			this.id = id;
+			this.price = price;
+			this.quantity = quantity;
+			this.name = name;
+			this.widget = widget;
+		}
+
+
+		/**
+		 * Compute a hash code for this object.
+		 *
+		 * @return hash code
+		 */
+		@Override
+		public int hashCode() {
+			int hash = 11;
+
+			hash = 31 * hash + id.hashCode();
+			return hash;
+		}
+
+		/**
+		 * Test if given object is equal to this.
+		 *
+		 * @param o other object to test
+		 * @return true if other object is equal (id)
+		 */
+		@Override
+		public boolean equals(Object o) {
+			if (o instanceof TransactionItem) {
+				TransactionItem i = (TransactionItem)o;
+
+				return (
+					id.equals(i.id) &&
+					price == i.price &&
+					quantity == i.quantity &&
+					((name != null && name.equals(i.name)) || (name == null && i.name == null)) &&
+					((widget != null && widget.equals(i.widget)) || (widget == null && i.widget == null))
+				);
+			}
+			return false;
+		}
+
+		/**
+		 * Return a string representation of this object for debug purpose.
+		 *
+		 * @return string representation
+		 */
+		@Override
+		public String toString() {
+			return (
+				"{id=" + id +
+				",price=" + price +
+				",quantity=" + quantity +
+				",name=" + name +
+				",widget=" + widget + "}"
+			);
+		}
+
+
+		/**
+		 * Convert to JSON format.
+		 *
+		 * @return JSON format
+		 */
+		private JsonObject asJson() {
+			JsonObject json = new JsonObject();
+
+			json.setString("id", id);
+			json.setDouble("price", price);
+			json.setInteger("quantity", quantity);
+			if (name != null) {
+				json.setString("name", name);
+			}
+			if (widget != null) {
+				json.setString("widget", widget);
+			}
+			return json;
+		}
+	}
+
 
 	/** API url */
-	public String url;
+	private final String url;
+
+	/** Debug output (print exceptions to stderr) */
+	public boolean debug = true;
 
 
 	/**
-	 * Constructor
+	 * Constructor.
 	 *
 	 */
-	public ApiClient() {
+	private ApiClient() {
 		this(null);
 	}
 
 	/**
-	 * Constructor
+	 * Constructor.
 	 *
 	 * @param url api url
 	 */
 	public ApiClient(String url) {
-		this(url, 1000, 15000, 3);
-	}
-
-	/**
-	 * Constructor
-	 *
-	 * @param url api url
-	 * @param connectTimeout connection timeout
-	 * @param readTimeout read timeout
-	 * @param connectMaxTries max. connection tries
-	 */
-	public ApiClient(String url, int connectTimeout, int readTimeout, int connectMaxTries) {
 		super();
 		this.url = url;
-		this.connectTimeout = connectTimeout;
-		this.readTimeout = readTimeout;
-		this.connectMaxTries = connectMaxTries;
 	}
 
 
 	/**
-	 * Proxy request
+	 * Proxy request.
 	 *
 	 * @param uri remote uri
 	 * @param context page context
@@ -315,38 +468,20 @@ public class ApiClient extends HttpClient {
 	}
 
 	/**
-	 * Proxy request
+	 * Proxy request.
 	 *
 	 * @param uri remote uri
 	 * @param request http request
 	 * @param response http response
 	 */
-	@SuppressWarnings("unchecked")
 	public void proxy(String uri, HttpServletRequest request, HttpServletResponse response) {
 		try {
-			// fetch headers from request
-			List<Header> headers = new ArrayList<Header>();
-			Enumeration<String> headerNames = (Enumeration<String>)request.getHeaderNames();
-
-			while (headerNames != null && headerNames.hasMoreElements()) {
-				String name = headerNames.nextElement();
-
-				if (!hiddenProxyHeaders.contains(name.toLowerCase())) {
-					Enumeration<String> headerValues = (Enumeration<String>)request.getHeaders(name);
-
-					while (headerValues != null && headerValues.hasMoreElements()) {
-						String value = headerValues.nextElement();
-
-						headers.add(new Header(name, value));
-					}
-				}
-			}
-
-			// append host/via
+			// build proxied headers
+			Header [] headers = fetchProxyHeaders(request);
 			URL _url = new URL(url);
 
-			headers.add(new Header("Host", _url.getHost()));
-			headers.add(new Header("Via", "1.1 (Proxy)"));
+			headers = add(Header.class, headers, new Header("Host", _url.getHost()));
+			headers = add(Header.class, headers, new Header("Via", "1.1 (Proxy)"));
 
 			// set cookies
 			javax.servlet.http.Cookie [] cookies = request.getCookies();
@@ -360,18 +495,20 @@ public class ApiClient extends HttpClient {
 			process(
 				request.getMethod(),
 				new URL(url + uri + (request.getQueryString() != null ? ("?" + request.getQueryString()) : "")),
-				headers.toArray(new Header[headers.size()]),
+				headers,
 				request.getInputStream(),
 				new ProxyCallback(response)
 			);
 		} catch (Exception e) {
-			e.printStackTrace();
+			if (debug) {
+				e.printStackTrace();
+			}
 		}
 	}
 
 
 	/**
-	 * Proxy request
+	 * Load page.
 	 *
 	 * @param uri page uri
 	 * @param context page context
@@ -382,7 +519,19 @@ public class ApiClient extends HttpClient {
 	}
 
 	/**
-	 * Load page
+	 * Load page (async).
+	 *
+	 * @param uri page uri
+	 * @param context page context
+	 * @return future page content
+	 */
+	public Future<Page> loadPageAsync(String uri, PageContext context) {
+		return loadPageAsync(uri, (HttpServletRequest)context.getRequest(), (HttpServletResponse)context.getResponse());
+	}
+
+
+	/**
+	 * Load page.
 	 *
 	 * @param uri page uri
 	 * @param request optional http request
@@ -393,9 +542,21 @@ public class ApiClient extends HttpClient {
 		return loadPage(uri, new LinkedHashMap<String, String[]>(), request, response);
 	}
 
+	/**
+	 * Load page (async).
+	 *
+	 * @param uri page uri
+	 * @param request optional http request
+	 * @param response optional http response
+	 * @return future page content
+	 */
+	public Future<Page> loadPageAsync(String uri, HttpServletRequest request, HttpServletResponse response) {
+		return loadPageAsync(uri, new LinkedHashMap<String, String[]>(), request, response);
+	}
+
 
 	/**
-	 * Proxy request
+	 * Load page.
 	 *
 	 * @param uri page uri
 	 * @param parameters page parameters
@@ -407,7 +568,20 @@ public class ApiClient extends HttpClient {
 	}
 
 	/**
-	 * Load page
+	 * Load page (async).
+	 *
+	 * @param uri page uri
+	 * @param parameters page parameters
+	 * @param context page context
+	 * @return future page content
+	 */
+	public Future<Page> loadPageAsync(String uri, String [][] parameters, PageContext context) {
+		return loadPageAsync(uri, parameters, (HttpServletRequest)context.getRequest(), (HttpServletResponse)context.getResponse());
+	}
+
+
+	/**
+	 * Load page.
 	 *
 	 * @param uri page uri
 	 * @param parameters page parameters
@@ -428,9 +602,31 @@ public class ApiClient extends HttpClient {
 		return loadPage(uri, args, request, response);
 	}
 
+	/**
+	 * Load page (async).
+	 *
+	 * @param uri page uri
+	 * @param parameters page parameters
+	 * @param request optional http request
+	 * @param response optional http response
+	 * @return future page content
+	 */
+	public Future<Page> loadPageAsync(String uri, String [][] parameters, HttpServletRequest request, HttpServletResponse response) {
+		Map<String, String[]> args = new LinkedHashMap<String, String[]>();
+
+		if (parameters != null) {
+			for (String [] parameter : parameters) {
+				for (int i = 1; i < parameter.length; i++) {
+					add(String.class, args, parameter[0], parameter[i]);
+				}
+			}
+		}
+		return loadPageAsync(uri, args, request, response);
+	}
+
 
 	/**
-	 * Proxy request
+	 * Load page.
 	 *
 	 * @param uri page uri
 	 * @param parameters page parameters
@@ -442,6 +638,19 @@ public class ApiClient extends HttpClient {
 	}
 
 	/**
+	 * Load page (async).
+	 *
+	 * @param uri page uri
+	 * @param parameters page parameters
+	 * @param context page context
+	 * @return future page content
+	 */
+	public Future<Page> loadPageAsync(String uri, Map<String, String[]> parameters, PageContext context) {
+		return loadPageAsync(uri, parameters, (HttpServletRequest)context.getRequest(), (HttpServletResponse)context.getResponse());
+	}
+
+
+	/**
 	 * Load page
 	 *
 	 * @param uri page uri
@@ -450,8 +659,574 @@ public class ApiClient extends HttpClient {
 	 * @param response optional http response
 	 * @return page content
 	 */
-	@SuppressWarnings("unchecked")
 	public Page loadPage(String uri, Map<String, String[]> parameters, final HttpServletRequest request, final HttpServletResponse response) {
+		applyRequest(request, parameters);
+		parameters.put("uri", new String [] { uri });
+		try {
+			final AtomicReference<Page> page = new AtomicReference<Page>();
+
+			postFields(
+				url + "/api/xml/page",
+				parameters,
+				"UTF-8",
+				null,
+				new Callback() {
+					@Override
+					public void beginResponse() throws Exception {
+						if (response != null) {
+							for (Cookie cookie : getCookies()) {
+								response.addCookie(cookie.toCookie());
+							}
+						}
+					}
+
+					@Override
+					public void parseResponse(InputStream is) throws Exception {
+						Element element = db.parse(new InputSource(is)).getDocumentElement();
+
+						if (!element.getNodeName().equals("cem")) {
+							throw new IllegalStateException("invalid xml element: " + element.getNodeName());
+						}
+						page.set(new Page(element));
+					}
+
+					@Override
+					public void error(Exception e) {
+					}
+				}
+			);
+			return page.get();
+		} catch (Exception e) {
+			if (debug) {
+				e.printStackTrace();
+			}
+		}
+		return new Page();
+	}
+
+	/**
+	 * Load page (async).
+	 *
+	 * @param uri page uri
+	 * @param parameters page parameters
+	 * @param request optional http request
+	 * @param response optional http response
+	 * @return future page content
+	 */
+	public Future<Page> loadPageAsync(String uri, final Map<String, String[]> parameters, final HttpServletRequest request, final HttpServletResponse response) {
+		applyRequest(request, parameters);
+		parameters.put("uri", new String [] { uri });
+
+		FutureTask<Page> task = new FutureTask<Page>(
+			new Callable<Page>() {
+				@Override
+				public Page call() throws Exception {
+					final AtomicReference<Page> page = new AtomicReference<Page>();
+
+					postFields(
+						url + "/api/xml/page",
+						parameters,
+						"UTF-8",
+						null,
+						new Callback() {
+							@Override
+							public void beginResponse() throws Exception {
+								if (response != null) {
+									for (Cookie cookie : getCookies()) {
+										response.addCookie(cookie.toCookie());
+									}
+								}
+							}
+
+							@Override
+							public void parseResponse(InputStream is) throws Exception {
+								Element element = db.parse(new InputSource(is)).getDocumentElement();
+
+								if (!element.getNodeName().equals("cem")) {
+									throw new IllegalStateException("invalid xml element: " + element.getNodeName());
+								}
+								page.set(new Page(element));
+							}
+
+							@Override
+							public void error(Exception e) {
+								throw new RuntimeException(e);
+							}
+						}
+					);
+					return page.get();
+				}
+			}
+		);
+		Thread thread = new Thread(task, "com.boxalino.cem.client.ApiClient.loadPageAsync");
+
+		thread.setDaemon(true);
+		thread.start();
+		return task;
+	}
+
+
+	/**
+	 * Track when a category is viewed.
+	 *
+	 * @param categoryId category identifier
+	 * @param categoryName optional category name
+	 * @param context page context
+	 * @return true on success
+	 */
+	public boolean trackCategoryView(String categoryId, String categoryName, PageContext context) {
+		return trackCategoryView(categoryId, categoryName, (HttpServletRequest)context.getRequest());
+	}
+
+	/**
+	 * Track when a category is viewed (async).
+	 *
+	 * @param categoryId category identifier
+	 * @param categoryName optional category name
+	 * @param context page context
+	 * @return true on success
+	 */
+	public Future<Boolean> trackCategoryViewAsync(String categoryId, String categoryName, PageContext context) {
+		return trackCategoryViewAsync(categoryId, categoryName, (HttpServletRequest)context.getRequest());
+	}
+
+
+	/**
+	 * Track when a category is viewed.
+	 *
+	 * @param categoryId category identifier
+	 * @param categoryName optional category name
+	 * @param request optional http request
+	 * @return true on success
+	 */
+	public boolean trackCategoryView(String categoryId, String categoryName, HttpServletRequest request) {
+		Map<String, String> description = new LinkedHashMap<String, String>();
+
+		description.put("id", categoryId);
+		if (categoryName != null) {
+			description.put("name", categoryName);
+		}
+		if (request != null && request.getParameter("widget") != null) {
+			description.put("widget", request.getParameter("widget"));
+		}
+		return trackEvent("categoryView", description, request);
+	}
+
+	/**
+	 * Track when a category is viewed (async).
+	 *
+	 * @param categoryId category identifier
+	 * @param categoryName optional category name
+	 * @param request optional http request
+	 * @return true on success
+	 */
+	public Future<Boolean> trackCategoryViewAsync(String categoryId, String categoryName, HttpServletRequest request) {
+		Map<String, String> description = new LinkedHashMap<String, String>();
+
+		description.put("id", categoryId);
+		if (categoryName != null) {
+			description.put("name", categoryName);
+		}
+		if (request != null && request.getParameter("widget") != null) {
+			description.put("widget", request.getParameter("widget"));
+		}
+		return trackEventAsync("categoryView", description, request);
+	}
+
+
+	/**
+	 * Track when an item is viewed.
+	 *
+	 * @param itemId item identifier
+	 * @param itemName optional item name
+	 * @param context page context
+	 * @return true on success
+	 */
+	public boolean trackProductView(String itemId, String itemName, PageContext context) {
+		return trackProductView(itemId, itemName, (HttpServletRequest)context.getRequest());
+	}
+
+	/**
+	 * Track when an item is viewed (async).
+	 *
+	 * @param itemId item identifier
+	 * @param itemName optional item name
+	 * @param context page context
+	 * @return true on success
+	 */
+	public Future<Boolean> trackProductViewAsync(String itemId, String itemName, PageContext context) {
+		return trackProductViewAsync(itemId, itemName, (HttpServletRequest)context.getRequest());
+	}
+
+
+	/**
+	 * Track when an item is viewed.
+	 *
+	 * @param itemId item identifier
+	 * @param itemName optional item name
+	 * @param request optional http request
+	 * @return true on success
+	 */
+	public boolean trackProductView(String itemId, String itemName, HttpServletRequest request) {
+		Map<String, String> description = new LinkedHashMap<String, String>();
+
+		description.put("id", itemId);
+		if (itemName != null) {
+			description.put("name", itemName);
+		}
+		if (request != null && request.getParameter("widget") != null) {
+			description.put("widget", request.getParameter("widget"));
+		}
+		return trackEvent("productView", description, request);
+	}
+
+	/**
+	 * Track when an item is viewed (async).
+	 *
+	 * @param itemId item identifier
+	 * @param itemName optional item name
+	 * @param request optional http request
+	 * @return true on success
+	 */
+	public Future<Boolean> trackProductViewAsync(String itemId, String itemName, HttpServletRequest request) {
+		Map<String, String> description = new LinkedHashMap<String, String>();
+
+		description.put("id", itemId);
+		if (itemName != null) {
+			description.put("name", itemName);
+		}
+		if (request != null && request.getParameter("widget") != null) {
+			description.put("widget", request.getParameter("widget"));
+		}
+		return trackEventAsync("productView", description, request);
+	}
+
+
+	/**
+	 * Track when an item is added to the basket.
+	 *
+	 * @param item item descriptor
+	 * @param context page context
+	 * @return true on success
+	 */
+	public boolean trackAddToBasket(TransactionItem item, PageContext context) {
+		return trackAddToBasket(item, (HttpServletRequest)context.getRequest());
+	}
+
+	/**
+	 * Track when an item is added to the basket (async).
+	 *
+	 * @param item item descriptor
+	 * @param context page context
+	 * @return true on success
+	 */
+	public Future<Boolean> trackAddToBasketAsync(TransactionItem item, PageContext context) {
+		return trackAddToBasketAsync(item, (HttpServletRequest)context.getRequest());
+	}
+
+
+	/**
+	 * Track when an item is added to the basket.
+	 *
+	 * @param item item descriptor
+	 * @param request optional http request
+	 * @return true on success
+	 */
+	public boolean trackAddToBasket(TransactionItem item, HttpServletRequest request) {
+		Map<String, String> description = new LinkedHashMap<String, String>();
+
+		description.put("item", item.asJson().toJson(true));
+		if (request != null && request.getParameter("widget") != null) {
+			description.put("widget", request.getParameter("widget"));
+		}
+		return trackEvent("addToBasket", description, request);
+	}
+
+	/**
+	 * Track when an item is added to the basket (async).
+	 *
+	 * @param item item descriptor
+	 * @param request optional http request
+	 * @return true on success
+	 */
+	public Future<Boolean> trackAddToBasketAsync(TransactionItem item, HttpServletRequest request) {
+		Map<String, String> description = new LinkedHashMap<String, String>();
+
+		description.put("item", item.asJson().toJson(true));
+		if (request != null && request.getParameter("widget") != null) {
+			description.put("widget", request.getParameter("widget"));
+		}
+		return trackEventAsync("addToBasket", description, request);
+	}
+
+
+	/**
+	 * Track when a checkout is completed.
+	 *
+	 * @param success success status (true: successful, false: failed)
+	 * @param amount transaction total amount
+	 * @param items items descriptors
+	 * @param context page context
+	 * @return true on success
+	 */
+	public boolean trackPurchase(boolean success, double amount, List<TransactionItem> items, PageContext context) {
+		return trackPurchase(success, amount, items, (HttpServletRequest)context.getRequest());
+	}
+
+	/**
+	 * Track when a checkout is completed (async).
+	 *
+	 * @param success success status (true: successful, false: failed)
+	 * @param amount transaction total amount
+	 * @param items items descriptors
+	 * @param context page context
+	 * @return true on success
+	 */
+	public Future<Boolean> trackPurchaseAsync(boolean success, double amount, List<TransactionItem> items, PageContext context) {
+		return trackPurchaseAsync(success, amount, items, (HttpServletRequest)context.getRequest());
+	}
+
+
+	/**
+	 * Track when a checkout is completed.
+	 *
+	 * @param success success status (true: successful, false: failed)
+	 * @param amount transaction total amount
+	 * @param items items descriptors
+	 * @param request optional http request
+	 * @return true on success
+	 */
+	public boolean trackPurchase(boolean success, double amount, List<TransactionItem> items, HttpServletRequest request) {
+		Map<String, String> description = new LinkedHashMap<String, String>();
+		JsonArray json = new JsonArray();
+
+		for (TransactionItem item : items) {
+			json.addJson(item.asJson());
+		}
+		description.put("status", success ? "1" : "0");
+		description.put("amount", Double.toString(amount));
+		description.put("items", json.toJson(true));
+		return trackEvent("purchaseDone", description, request);
+	}
+
+	/**
+	 * Track when a checkout is completed (async).
+	 *
+	 * @param success success status (true: successful, false: failed)
+	 * @param amount transaction total amount
+	 * @param items items descriptors
+	 * @param request optional http request
+	 * @return true on success
+	 */
+	public Future<Boolean> trackPurchaseAsync(boolean success, double amount, List<TransactionItem> items, HttpServletRequest request) {
+		Map<String, String> description = new LinkedHashMap<String, String>();
+		JsonArray json = new JsonArray();
+
+		for (TransactionItem item : items) {
+			json.addJson(item.asJson());
+		}
+		description.put("status", success ? "1" : "0");
+		description.put("amount", Double.toString(amount));
+		description.put("items", json.toJson(true));
+		return trackEventAsync("purchaseDone", description, request);
+	}
+
+
+	/**
+	 * Track an analytics event.
+	 *
+	 * @param name event name
+	 * @param description event description (map)
+	 * @param request optional http request
+	 * @return true on success
+	 */
+	public boolean trackEvent(String name, Map<String, String> description, HttpServletRequest request) {
+		String [] list = new String[description.size()];
+		int i = 0;
+
+		for (Map.Entry<String, String> item : description.entrySet()) {
+			try {
+				list[i++] = URLEncoder.encode(item.getKey(), "UTF-8") + ":" + URLEncoder.encode(item.getValue(), "UTF-8");
+			} catch (Exception e) {
+				if (debug) {
+					e.printStackTrace();
+				}
+			}
+		}
+		return trackEvent(name, list, request);
+	}
+
+	/**
+	 * Track an analytics event (async).
+	 *
+	 * @param name event name
+	 * @param description event description (map)
+	 * @param request optional http request
+	 * @return true on success
+	 */
+	public Future<Boolean> trackEventAsync(String name, Map<String, String> description, HttpServletRequest request) {
+		String [] list = new String[description.size()];
+		int i = 0;
+
+		for (Map.Entry<String, String> item : description.entrySet()) {
+			try {
+				list[i++] = URLEncoder.encode(item.getKey(), "UTF-8") + ":" + URLEncoder.encode(item.getValue(), "UTF-8");
+			} catch (Exception e) {
+				if (debug) {
+					e.printStackTrace();
+				}
+			}
+		}
+		return trackEventAsync(name, list, request);
+	}
+
+
+	/**
+	 * Track an analytics event.
+	 *
+	 * @param name event name
+	 * @param description event description (list)
+	 * @param request optional http request
+	 * @return true on success
+	 */
+	public boolean trackEvent(String name, String [] description, HttpServletRequest request) {
+		StringBuilder buffer = new StringBuilder();
+
+		for (String item : description) {
+			if (buffer.length() > 0) {
+				buffer.append(' ');
+			}
+			buffer.append(item);
+		}
+		return trackEvent(name, buffer.toString(), request);
+	}
+
+	/**
+	 * Track an analytics event (async).
+	 *
+	 * @param name event name
+	 * @param description event description (list)
+	 * @param request optional http request
+	 * @return true on success
+	 */
+	public Future<Boolean> trackEventAsync(String name, String [] description, HttpServletRequest request) {
+		StringBuilder buffer = new StringBuilder();
+
+		for (String item : description) {
+			if (buffer.length() > 0) {
+				buffer.append(' ');
+			}
+			buffer.append(item);
+		}
+		return trackEventAsync(name, buffer.toString(), request);
+	}
+
+
+	/**
+	 * Track an analytics event.
+	 *
+	 * @param name event name
+	 * @param description event description (raw)
+	 * @param request optional http request
+	 * @return true on success
+	 */
+	public boolean trackEvent(String name, String description, HttpServletRequest request) {
+		Map<String, String[]> parameters = new LinkedHashMap<String, String[]>();
+		final AtomicBoolean success = new AtomicBoolean();
+
+		applyRequest(request, parameters);
+		parameters.put("eventName", new String [] { name });
+		parameters.put("eventDescription", new String [] { description });
+		try {
+			postFields(
+				url + "/analytics",
+				parameters,
+				"UTF-8",
+				null,
+				new Callback() {
+					@Override
+					public void beginResponse() throws Exception {
+						success.set(getCode() == 200);
+					}
+
+					@Override
+					public void parseResponse(InputStream is) throws Exception {
+					}
+
+					@Override
+					public void error(Exception e) {
+					}
+				}
+			);
+		} catch (Exception e) {
+			if (debug) {
+				e.printStackTrace();
+			}
+		}
+		return success.get();
+	}
+
+	/**
+	 * Track an analytics event (async).
+	 *
+	 * @param name event name
+	 * @param description event description (raw)
+	 * @param request optional http request
+	 * @return true on success
+	 */
+	public Future<Boolean> trackEventAsync(String name, String description, HttpServletRequest request) {
+		final Map<String, String[]> parameters = new LinkedHashMap<String, String[]>();
+
+		applyRequest(request, parameters);
+		parameters.put("eventName", new String [] { name });
+		parameters.put("eventDescription", new String [] { description });
+
+		FutureTask<Boolean> task = new FutureTask<Boolean>(
+			new Callable<Boolean>() {
+				@Override
+				public Boolean call() throws Exception {
+					final AtomicBoolean success = new AtomicBoolean();
+
+					postFields(
+						url + "/analytics",
+						parameters,
+						"UTF-8",
+						null,
+						new Callback() {
+							@Override
+							public void beginResponse() throws Exception {
+								success.set(getCode() == 200);
+							}
+
+							@Override
+							public void parseResponse(InputStream is) throws Exception {
+							}
+
+							@Override
+							public void error(Exception e) {
+							}
+						}
+					);
+					return success.get();
+				}
+			}
+		);
+		Thread thread = new Thread(task, "com.boxalino.cem.client.ApiClient.trackEventAsync");
+
+		thread.setDaemon(true);
+		thread.start();
+		return task;
+	}
+
+
+	/**
+	 * Apply request parameters.
+	 *
+	 * @param request optional http request
+	 * @param parameters request parameters
+	 */
+	@SuppressWarnings("unchecked")
+	private void applyRequest(HttpServletRequest request, Map<String, String[]> parameters) {
 		// apply request
 		if (request != null) {
 			// set cookies
@@ -504,51 +1279,38 @@ public class ApiClient extends HttpClient {
 			parameters.put("serverHost", new String [] { "" });
 			parameters.put("serverUri", new String [] { "" });
 		}
+	}
 
-		parameters.put("uri", new String [] { uri });
-		try {
-			final AtomicReference<Page> page = new AtomicReference<Page>();
+	/**
+	 * Fetch proxy headers from request.
+	 *
+	 * @param request http request
+	 * @return proxy headers
+	 */
+	@SuppressWarnings("unchecked")
+	private Header [] fetchProxyHeaders(HttpServletRequest request) {
+		List<Header> list = new ArrayList<Header>();
+		Enumeration<String> headerNames = (Enumeration<String>)request.getHeaderNames();
 
-			postFields(
-				url + "/api/xml/page",
-				parameters,
-				"UTF-8",
-				null,
-				new Callback() {
-					@Override
-					public void beginResponse() throws Exception {
-						if (response != null) {
-							for (Cookie cookie : getCookies()) {
-								response.addCookie(cookie.toCookie());
-							}
-						}
-					}
+		while (headerNames != null && headerNames.hasMoreElements()) {
+			String name = headerNames.nextElement();
 
-					@Override
-					public void parseResponse(InputStream is) throws Exception {
-						Element element = db.parse(new InputSource(is)).getDocumentElement();
+			if (!hiddenProxyHeaders.contains(name.toLowerCase())) {
+				Enumeration<String> headerValues = (Enumeration<String>)request.getHeaders(name);
 
-						if (!element.getNodeName().equals("cem")) {
-							throw new IllegalStateException("invalid xml element: " + element.getNodeName());
-						}
-						page.set(new Page(element));
-					}
+				while (headerValues != null && headerValues.hasMoreElements()) {
+					String value = headerValues.nextElement();
 
-					@Override
-					public void error(Exception e) {
-					}
+					list.add(new Header(name, value));
 				}
-			);
-			return page.get();
-		} catch (Exception e) {
-			e.printStackTrace();
+			}
 		}
-		return new Page();
+		return list.toArray(new Header[list.size()]);
 	}
 
 
 	/**
-	 * Visit an xml "array" element
+	 * Visit an xml "array" element.
 	 *
 	 * @param element xml element
 	 * @return array (id)
@@ -574,7 +1336,7 @@ public class ApiClient extends HttpClient {
 	}
 
 	/**
-	 * Visit an xml "map" element
+	 * Visit an xml "map" element.
 	 *
 	 * @param element xml element
 	 * @return map (id => text)
@@ -600,7 +1362,7 @@ public class ApiClient extends HttpClient {
 	}
 
 	/**
-	 * Visit an xml element and return all direct textual content
+	 * Visit an xml element and return all direct textual content.
 	 *
 	 * @param element xml element
 	 * @return all textual content
@@ -624,7 +1386,7 @@ public class ApiClient extends HttpClient {
 
 
 	/**
-	 * Proxy callback writing to response
+	 * Proxy callback writing to response.
 	 *
 	 * @author nitro
 	 */
@@ -634,7 +1396,7 @@ public class ApiClient extends HttpClient {
 
 
 		/**
-		 * Constructor
+		 * Constructor.
 		 *
 		 * @param response underlying response
 		 */
@@ -652,8 +1414,6 @@ public class ApiClient extends HttpClient {
 			for (Header header : getHeaders()) {
 				if (!hiddenProxyHeaders.contains(header.name.toLowerCase())) {
 					response.addHeader(header.name, header.value);
-				} else {
-					System.err.println(header.name + "=" + header.value);
 				}
 			}
 			for (Cookie cookie : getCookies()) {

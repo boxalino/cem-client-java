@@ -1,7 +1,7 @@
 <?xml version="1.0" ?>
 
 <project name="CEM-API-CLIENT" default="help" basedir=".">
-	<target name="build" depends="clean, compile, clean-jar, jar"/>
+	<target name="build" depends="clean, compile, clean-jar, jar, proguard"/>
 	<target name="clean-all" depends="clean, clean-jar"/>
 
 
@@ -90,12 +90,92 @@
 
 	<target name="clean-jar" depends="config">
 		<delete file="build/boxalino-cem-client.jar"/>
+		<delete file="build/boxalino-cem-client.map"/>
+		<delete file="build/boxalino-cem-client.usg"/>
+		<delete file="build/boxalino-cem-client-debug.jar"/>
 	</target>
 	<target name="jar" depends="clean-jar">
 		<mkdir dir="build" />
-		<jar destfile="build/boxalino-cem-client.jar">
+		<jar destfile="build/boxalino-cem-client-debug.jar">
 			<fileset dir="classes" includes="**/*" />
 		</jar>
+	</target>
+	<target name="proguard" depends="jar">
+		<taskdef resource="proguard/ant/task.properties" classpath="../../../base/ant/proguard.jar" />
+
+		<proguard
+			verbose="true"
+			note="true"
+			target="1.6"
+			skipnonpubliclibraryclasses="false"
+			skipnonpubliclibraryclassmembers="false"
+			optimize="false"
+			optimizationpasses="5"
+			allowaccessmodification="false"
+			mergeinterfacesaggressively="false"
+			shrink="true"
+			obfuscate="true"
+			overloadaggressively="false"
+			flattenpackagehierarchy="com.boxalino.cem.client"
+			printmapping="build/boxalino-cem-client.map"
+			printusage="build/boxalino-cem-client.usg"
+			preverify="false">
+
+			<injar file="build/boxalino-cem-client-debug.jar"/>
+			<outjar file="build/boxalino-cem-client.jar"/>
+
+			<libraryjar>
+				<fileset dir="${java.home}/lib" includes="rt.jar"/>
+				<fileset dir="lib">
+					<include name="**/*.jar"/>
+				</fileset>
+			</libraryjar>
+
+			<!-- keep attributes -->
+			<keepattribute name="*Annotation*"/>
+			<keepattribute name="InnerClasses"/>
+			<keepattribute name="Exceptions"/>
+			<keepattribute name="Signature"/>
+			<!--keepattribute name="LineNumberTable"/-->
+			<!--keepattribute name="SourceFile"/-->
+
+			<!-- keep enumerations -->
+			<keepclassmembers extends="java.lang.Enum">
+				<method access="public static" name="values"/>
+				<method access="public static" type="**" name="valueOf" parameters="java.lang.String" />
+			</keepclassmembers>
+
+			<!-- keep api -->
+			<keep name="com.boxalino.cem.client.HttpClient">
+				<field access="public protected" />
+				<method access="public protected" />
+			</keep>
+			<keep name="com.boxalino.cem.client.HttpClient$Callback">
+				<field access="public protected" />
+				<method access="public protected" />
+			</keep>
+			<keep name="com.boxalino.cem.client.HttpClient$Cookie">
+				<field access="public protected" />
+				<method access="public protected" />
+			</keep>
+			<keep name="com.boxalino.cem.client.HttpClient$Header">
+				<field access="public protected" />
+				<method access="public protected" />
+			</keep>
+
+			<keep name="com.boxalino.cem.client.ApiClient">
+				<field access="public protected" />
+				<method access="public protected" />
+			</keep>
+			<keep name="com.boxalino.cem.client.ApiClient$Page">
+				<field access="public protected" />
+				<method access="public protected" />
+			</keep>
+			<keep name="com.boxalino.cem.client.ApiClient$TransactionItem">
+				<field access="public protected" />
+				<method access="public protected" />
+			</keep>
+		</proguard>
 	</target>
 
 	<target name="clean-doc" depends="config">
@@ -120,7 +200,7 @@
 				Footer="(C) Boxalino AG">
 
 			<fileset dir="src/">
-				<include name="**/*.java" />
+				<include name="com/boxalino/cem/client/*.java" />
 			</fileset>
 		</javadoc>
 	</target>
