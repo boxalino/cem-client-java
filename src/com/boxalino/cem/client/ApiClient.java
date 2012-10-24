@@ -7,6 +7,7 @@ import java.net.URL;
 import java.net.URLEncoder;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.LinkedHashMap;
@@ -432,7 +433,7 @@ public class ApiClient extends HttpClient {
 
 
 	/** API url */
-	private final String url;
+	protected final String url;
 
 	/** Debug output (print exceptions to stderr) */
 	public boolean debug = true;
@@ -488,7 +489,9 @@ public class ApiClient extends HttpClient {
 
 			if (cookies != null) {
 				for (javax.servlet.http.Cookie cookie : cookies) {
-					setCookie(cookie);
+					if (cookie.getName().indexOf("cem") == 0) {
+						setCookie(cookie);
+					}
 				}
 			}
 
@@ -661,6 +664,7 @@ public class ApiClient extends HttpClient {
 	 */
 	public Page loadPage(String uri, Map<String, String[]> parameters, final HttpServletRequest request, final HttpServletResponse response) {
 		applyRequest(request, parameters);
+
 		parameters.put("uri", new String [] { uri });
 		try {
 			final AtomicReference<Page> page = new AtomicReference<Page>();
@@ -675,7 +679,9 @@ public class ApiClient extends HttpClient {
 					public void beginResponse() throws Exception {
 						if (response != null) {
 							for (Cookie cookie : getCookies()) {
-								response.addCookie(cookie.toCookie());
+								if (cookie.getName().indexOf("cem") == 0) {
+									response.addCookie(cookie.toCookie());
+								}
 							}
 						}
 					}
@@ -714,10 +720,13 @@ public class ApiClient extends HttpClient {
 	 * @return future page content
 	 */
 	public Future<Page> loadPageAsync(String uri, final Map<String, String[]> parameters, final HttpServletRequest request, final HttpServletResponse response) {
-		applyRequest(request, parameters);
-		parameters.put("uri", new String [] { uri });
+		FutureTask<Page> task;
+		Thread thread;
 
-		FutureTask<Page> task = new FutureTask<Page>(
+		applyRequest(request, parameters);
+
+		parameters.put("uri", new String [] { uri });
+		task = new FutureTask<Page>(
 			new Callable<Page>() {
 				@Override
 				public Page call() throws Exception {
@@ -733,7 +742,9 @@ public class ApiClient extends HttpClient {
 							public void beginResponse() throws Exception {
 								if (response != null) {
 									for (Cookie cookie : getCookies()) {
-										response.addCookie(cookie.toCookie());
+										if (cookie.getName().indexOf("cem") == 0) {
+											response.addCookie(cookie.toCookie());
+										}
 									}
 								}
 							}
@@ -758,8 +769,7 @@ public class ApiClient extends HttpClient {
 				}
 			}
 		);
-		Thread thread = new Thread(task, "com.boxalino.cem.client.ApiClient.loadPageAsync");
-
+		thread = new Thread(task, "com.boxalino.cem.client.ApiClient.loadPageAsync");
 		thread.setDaemon(true);
 		thread.start();
 		return task;
@@ -1045,6 +1055,9 @@ public class ApiClient extends HttpClient {
 		int i = 0;
 
 		for (Map.Entry<String, String> item : description.entrySet()) {
+			if (item.getKey().length() == 0 || item.getValue().length() == 0) {
+				continue;
+			}
 			try {
 				list[i++] = URLEncoder.encode(item.getKey(), "UTF-8") + ":" + URLEncoder.encode(item.getValue(), "UTF-8");
 			} catch (Exception e) {
@@ -1053,7 +1066,7 @@ public class ApiClient extends HttpClient {
 				}
 			}
 		}
-		return trackEvent(name, list, request);
+		return trackEvent(name, Arrays.copyOf(list, i), request);
 	}
 
 	/**
@@ -1069,6 +1082,9 @@ public class ApiClient extends HttpClient {
 		int i = 0;
 
 		for (Map.Entry<String, String> item : description.entrySet()) {
+			if (item.getKey().length() == 0 || item.getValue().length() == 0) {
+				continue;
+			}
 			try {
 				list[i++] = URLEncoder.encode(item.getKey(), "UTF-8") + ":" + URLEncoder.encode(item.getValue(), "UTF-8");
 			} catch (Exception e) {
@@ -1077,7 +1093,7 @@ public class ApiClient extends HttpClient {
 				}
 			}
 		}
-		return trackEventAsync(name, list, request);
+		return trackEventAsync(name, Arrays.copyOf(list, i), request);
 	}
 
 
@@ -1093,10 +1109,12 @@ public class ApiClient extends HttpClient {
 		StringBuilder buffer = new StringBuilder();
 
 		for (String item : description) {
-			if (buffer.length() > 0) {
-				buffer.append(' ');
+			if (item.length() > 0) {
+				if (buffer.length() > 0) {
+					buffer.append(' ');
+				}
+				buffer.append(item);
 			}
-			buffer.append(item);
 		}
 		return trackEvent(name, buffer.toString(), request);
 	}
@@ -1113,10 +1131,12 @@ public class ApiClient extends HttpClient {
 		StringBuilder buffer = new StringBuilder();
 
 		for (String item : description) {
-			if (buffer.length() > 0) {
-				buffer.append(' ');
+			if (item.length() > 0) {
+				if (buffer.length() > 0) {
+					buffer.append(' ');
+				}
+				buffer.append(item);
 			}
-			buffer.append(item);
 		}
 		return trackEventAsync(name, buffer.toString(), request);
 	}
@@ -1176,12 +1196,14 @@ public class ApiClient extends HttpClient {
 	 */
 	public Future<Boolean> trackEventAsync(String name, String description, HttpServletRequest request) {
 		final Map<String, String[]> parameters = new LinkedHashMap<String, String[]>();
+		FutureTask<Boolean> task;
+		Thread thread;
 
 		applyRequest(request, parameters);
+
 		parameters.put("eventName", new String [] { name });
 		parameters.put("eventDescription", new String [] { description });
-
-		FutureTask<Boolean> task = new FutureTask<Boolean>(
+		task = new FutureTask<Boolean>(
 			new Callable<Boolean>() {
 				@Override
 				public Boolean call() throws Exception {
@@ -1211,8 +1233,7 @@ public class ApiClient extends HttpClient {
 				}
 			}
 		);
-		Thread thread = new Thread(task, "com.boxalino.cem.client.ApiClient.trackEventAsync");
-
+		thread = new Thread(task, "com.boxalino.cem.client.ApiClient.trackEventAsync");
 		thread.setDaemon(true);
 		thread.start();
 		return task;
@@ -1234,7 +1255,9 @@ public class ApiClient extends HttpClient {
 
 			if (cookies != null) {
 				for (javax.servlet.http.Cookie cookie : cookies) {
-					setCookie(cookie);
+					if (cookie.getName().indexOf("cem") == 0) {
+						setCookie(cookie);
+					}
 				}
 			}
 
@@ -1417,7 +1440,9 @@ public class ApiClient extends HttpClient {
 				}
 			}
 			for (Cookie cookie : getCookies()) {
-				response.addCookie(cookie.toCookie());
+				if (cookie.getName().indexOf("cem") == 0) {
+					response.addCookie(cookie.toCookie());
+				}
 			}
 		}
 
