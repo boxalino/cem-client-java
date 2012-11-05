@@ -1283,9 +1283,10 @@ public class ApiClient extends HttpClient {
 			if (!parameters.containsKey("clientReferer") && request.getHeader("Referer") != null) {
 				parameters.put("clientReferer", new String [] { request.getHeader("Referer") });
 			}
+/* SINCE Servlet API 2.4 only:
 			if (!parameters.containsKey("serverAddress")) {
 				parameters.put("serverAddress", new String [] { request.getLocalAddr() });
-			}
+			}*/
 			if (!parameters.containsKey("serverHost")) {
 				parameters.put("serverHost", new String [] { request.getServerName() });
 			}
