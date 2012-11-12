@@ -1081,9 +1081,11 @@ public class HttpClient {
 
 			for (Cookie cookie : cookies.values()) {
 				if (buffer.length() > 0) {
-					buffer.append(", ");
+					buffer.append("; ");
 				}
-				buffer.append(cookie.toString());
+				buffer.append(cookie.getName());
+				buffer.append('=');
+				buffer.append(cookie.getValue());
 			}
 			return buffer.toString();
 		}
