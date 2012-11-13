@@ -2,6 +2,7 @@ package com.boxalino.cem.client;
 
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.UnsupportedEncodingException;
 
 import java.net.URL;
 import java.net.URLEncoder;
@@ -26,6 +27,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.zip.GZIPInputStream;
 
 import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletRequestWrapper;
 import javax.servlet.http.HttpServletResponse;
 
 import javax.servlet.jsp.PageContext;
@@ -662,7 +664,10 @@ public class ApiClient extends HttpClient {
 	 * @param response optional http response
 	 * @return page content
 	 */
-	public Page loadPage(String uri, Map<String, String[]> parameters, final HttpServletRequest request, final HttpServletResponse response) {
+	public Page loadPage(String uri, Map<String, String[]> parameters, HttpServletRequest request, final HttpServletResponse response) {
+		if (request != null && !(request instanceof HttpServletRequestDecoded)) {
+			request = new HttpServletRequestDecoded(request);
+		}
 		applyRequest(request, parameters);
 
 		parameters.put("uri", new String [] { uri });
@@ -719,10 +724,13 @@ public class ApiClient extends HttpClient {
 	 * @param response optional http response
 	 * @return future page content
 	 */
-	public Future<Page> loadPageAsync(String uri, final Map<String, String[]> parameters, final HttpServletRequest request, final HttpServletResponse response) {
+	public Future<Page> loadPageAsync(String uri, final Map<String, String[]> parameters, HttpServletRequest request, final HttpServletResponse response) {
 		FutureTask<Page> task;
 		Thread thread;
 
+		if (request != null && !(request instanceof HttpServletRequestDecoded)) {
+			request = new HttpServletRequestDecoded(request);
+		}
 		applyRequest(request, parameters);
 
 		parameters.put("uri", new String [] { uri });
@@ -816,6 +824,9 @@ public class ApiClient extends HttpClient {
 		if (categoryName != null) {
 			description.put("name", categoryName);
 		}
+		if (request != null && !(request instanceof HttpServletRequestDecoded)) {
+			request = new HttpServletRequestDecoded(request);
+		}
 		if (request != null && request.getParameter("widget") != null) {
 			description.put("widget", request.getParameter("widget"));
 		}
@@ -836,6 +847,9 @@ public class ApiClient extends HttpClient {
 		description.put("id", categoryId);
 		if (categoryName != null) {
 			description.put("name", categoryName);
+		}
+		if (request != null && !(request instanceof HttpServletRequestDecoded)) {
+			request = new HttpServletRequestDecoded(request);
 		}
 		if (request != null && request.getParameter("widget") != null) {
 			description.put("widget", request.getParameter("widget"));
@@ -884,6 +898,9 @@ public class ApiClient extends HttpClient {
 		if (itemName != null) {
 			description.put("name", itemName);
 		}
+		if (request != null && !(request instanceof HttpServletRequestDecoded)) {
+			request = new HttpServletRequestDecoded(request);
+		}
 		if (request != null && request.getParameter("widget") != null) {
 			description.put("widget", request.getParameter("widget"));
 		}
@@ -904,6 +921,9 @@ public class ApiClient extends HttpClient {
 		description.put("id", itemId);
 		if (itemName != null) {
 			description.put("name", itemName);
+		}
+		if (request != null && !(request instanceof HttpServletRequestDecoded)) {
+			request = new HttpServletRequestDecoded(request);
 		}
 		if (request != null && request.getParameter("widget") != null) {
 			description.put("widget", request.getParameter("widget"));
@@ -946,6 +966,9 @@ public class ApiClient extends HttpClient {
 		Map<String, String> description = new LinkedHashMap<String, String>();
 
 		description.put("item", item.asJson().toJson(true));
+		if (request != null && !(request instanceof HttpServletRequestDecoded)) {
+			request = new HttpServletRequestDecoded(request);
+		}
 		if (request != null && request.getParameter("widget") != null) {
 			description.put("widget", request.getParameter("widget"));
 		}
@@ -963,6 +986,9 @@ public class ApiClient extends HttpClient {
 		Map<String, String> description = new LinkedHashMap<String, String>();
 
 		description.put("item", item.asJson().toJson(true));
+		if (request != null && !(request instanceof HttpServletRequestDecoded)) {
+			request = new HttpServletRequestDecoded(request);
+		}
 		if (request != null && request.getParameter("widget") != null) {
 			description.put("widget", request.getParameter("widget"));
 		}
@@ -1154,6 +1180,9 @@ public class ApiClient extends HttpClient {
 		Map<String, String[]> parameters = new LinkedHashMap<String, String[]>();
 		final AtomicBoolean success = new AtomicBoolean();
 
+		if (request != null && !(request instanceof HttpServletRequestDecoded)) {
+			request = new HttpServletRequestDecoded(request);
+		}
 		applyRequest(request, parameters);
 		parameters.put("eventName", new String [] { name });
 		parameters.put("eventDescription", new String [] { description });
@@ -1199,6 +1228,9 @@ public class ApiClient extends HttpClient {
 		FutureTask<Boolean> task;
 		Thread thread;
 
+		if (request != null && !(request instanceof HttpServletRequestDecoded)) {
+			request = new HttpServletRequestDecoded(request);
+		}
 		applyRequest(request, parameters);
 
 		parameters.put("eventName", new String [] { name });
@@ -1249,6 +1281,9 @@ public class ApiClient extends HttpClient {
 	@SuppressWarnings("unchecked")
 	private void applyRequest(HttpServletRequest request, Map<String, String[]> parameters) {
 		// apply request
+		if (request != null && !(request instanceof HttpServletRequestDecoded)) {
+			request = new HttpServletRequestDecoded(request);
+		}
 		if (request != null) {
 			// set cookies
 			javax.servlet.http.Cookie [] cookies = request.getCookies();
@@ -1408,6 +1443,88 @@ public class ApiClient extends HttpClient {
 		return buffer.toString().trim();
 	}
 
+
+	/**
+	 * A decoded servlet request (force UTF-8 decoding)
+	 *
+	 * @author nitro
+	 */
+	private class HttpServletRequestDecoded extends HttpServletRequestWrapper {
+		/**
+		 * Constructor.
+		 *
+		 * @param request underlying request
+		 */
+		private HttpServletRequestDecoded(HttpServletRequest request) {
+			super(request);
+		}
+
+
+		/**
+		 * {@inheritDoc}
+		 */
+		@Override
+		public String getParameter(String name) {
+			String value = super.getParameter(name);
+
+			if (value != null) {
+				try {
+					return new String(value.getBytes("ISO-8859-1"), "UTF-8");
+				} catch (UnsupportedEncodingException e) { }
+			}
+			return value;
+		}
+
+		/**
+		 * {@inheritDoc}
+		 */
+		@Override
+		@SuppressWarnings("unchecked")
+		public Map getParameterMap() {
+			Map<String, String[]> map = (Map<String, String[]>)super.getParameterMap();
+
+			if (map != null && map.size() > 0) {
+				Map<String, String[]> tmp = new LinkedHashMap<String, String[]>();
+
+				for (Map.Entry<String, String[]> entry : map.entrySet()) {
+					String [] tmp2 = new String[entry.getValue().length];
+
+					for (int i = 0; i < tmp2.length; i++) {
+						try {
+							tmp2[i] = new String(entry.getValue()[i].getBytes("ISO-8859-1"), "UTF-8");
+						} catch (UnsupportedEncodingException e) {
+							tmp2[i] = entry.getValue()[i];
+						}
+					}
+					tmp.put(entry.getKey(), tmp2);
+				}
+				return tmp;
+			}
+			return map;
+		}
+
+		/**
+		 * {@inheritDoc}
+		 */
+		@Override
+		public String [] getParameterValues(String name) {
+			String [] values = super.getParameterValues(name);
+
+			if (values != null && values.length > 0) {
+				String [] tmp = new String[values.length];
+
+				for (int i = 0; i < values.length; i++) {
+					try {
+						tmp[i] = new String(values[i].getBytes("ISO-8859-1"), "UTF-8");
+					} catch (UnsupportedEncodingException e) {
+						tmp[i] = values[i];
+					}
+				}
+				return tmp;
+			}
+			return values;
+		}
+	}
 
 	/**
 	 * Proxy callback writing to response.
