@@ -600,6 +600,15 @@ public class HttpClient {
 	}
 
 	/**
+	 * Get last http connect tries
+	 *
+	 * @return http connect tries
+	 */
+	public int getTries() {
+		return connectTries;
+	}
+
+	/**
 	 * Get last http code
 	 *
 	 * @return http code
@@ -998,8 +1007,18 @@ public class HttpClient {
 			try {
 				connection.connect();
 				connected = true;
-			} catch (SocketTimeoutException e) { }
+			} catch (SocketTimeoutException e) {
+				if (callback != null) {
+					callback.error(e);
+				}
+			}
 		} while (!connected && connectTries < connectMaxTries);
+
+		// check if connected
+		if (!connected) {
+			time = System.currentTimeMillis() - beginTime;
+			return;
+		}
 
 		// stream request body
 		if (is != null) {

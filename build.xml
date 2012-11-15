@@ -167,6 +167,10 @@
 				<field access="public protected" />
 				<method access="public protected" />
 			</keep>
+			<keep name="com.boxalino.cem.client.HttpClient$ApiCallback">
+				<field access="public protected" />
+				<method access="public protected" />
+			</keep>
 			<keep name="com.boxalino.cem.client.ApiClient$Page">
 				<field access="public protected" />
 				<method access="public protected" />

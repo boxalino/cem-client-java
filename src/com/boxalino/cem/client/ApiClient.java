@@ -433,9 +433,26 @@ public class ApiClient extends HttpClient {
 		}
 	}
 
+	/**
+	 * Api callback
+	 *
+	 * @author nitro
+	 */
+	public static interface ApiCallback {
+		/**
+		 * Called if an error occurs
+		 *
+		 * @param e exception
+		 */
+		public void error(Exception e);
+	}
+
 
 	/** API url */
-	protected final String url;
+	public final String url;
+
+	/** Error callback */
+	public final AtomicReference<ApiCallback> callback = new AtomicReference<ApiCallback>();
 
 	/** Debug output (print exceptions to stderr) */
 	public boolean debug = true;
@@ -505,8 +522,13 @@ public class ApiClient extends HttpClient {
 				new ProxyCallback(response)
 			);
 		} catch (Exception e) {
+			ApiCallback callback = this.callback.get();
+
 			if (debug) {
 				e.printStackTrace();
+			}
+			if (callback != null) {
+				callback.error(e);
 			}
 		}
 	}
@@ -703,13 +725,26 @@ public class ApiClient extends HttpClient {
 
 					@Override
 					public void error(Exception e) {
+						ApiCallback callback = ApiClient.this.callback.get();
+
+						if (debug) {
+							e.printStackTrace();
+						}
+						if (callback != null) {
+							callback.error(e);
+						}
 					}
 				}
 			);
 			return page.get();
 		} catch (Exception e) {
+			ApiCallback callback = this.callback.get();
+
 			if (debug) {
 				e.printStackTrace();
+			}
+			if (callback != null) {
+				callback.error(e);
 			}
 		}
 		return new Page();
@@ -769,6 +804,14 @@ public class ApiClient extends HttpClient {
 
 							@Override
 							public void error(Exception e) {
+								ApiCallback callback = ApiClient.this.callback.get();
+
+								if (debug) {
+									e.printStackTrace();
+								}
+								if (callback != null) {
+									callback.error(e);
+								}
 								throw new RuntimeException(e);
 							}
 						}
@@ -1087,8 +1130,13 @@ public class ApiClient extends HttpClient {
 			try {
 				list[i++] = URLEncoder.encode(item.getKey(), "UTF-8") + ":" + URLEncoder.encode(item.getValue(), "UTF-8");
 			} catch (Exception e) {
+				ApiCallback callback = this.callback.get();
+
 				if (debug) {
 					e.printStackTrace();
+				}
+				if (callback != null) {
+					callback.error(e);
 				}
 			}
 		}
@@ -1114,8 +1162,13 @@ public class ApiClient extends HttpClient {
 			try {
 				list[i++] = URLEncoder.encode(item.getKey(), "UTF-8") + ":" + URLEncoder.encode(item.getValue(), "UTF-8");
 			} catch (Exception e) {
+				ApiCallback callback = this.callback.get();
+
 				if (debug) {
 					e.printStackTrace();
+				}
+				if (callback != null) {
+					callback.error(e);
 				}
 			}
 		}
@@ -1204,12 +1257,25 @@ public class ApiClient extends HttpClient {
 
 					@Override
 					public void error(Exception e) {
+						ApiCallback callback = ApiClient.this.callback.get();
+
+						if (debug) {
+							e.printStackTrace();
+						}
+						if (callback != null) {
+							callback.error(e);
+						}
 					}
 				}
 			);
 		} catch (Exception e) {
+			ApiCallback callback = this.callback.get();
+
 			if (debug) {
 				e.printStackTrace();
+			}
+			if (callback != null) {
+				callback.error(e);
 			}
 		}
 		return success.get();
@@ -1258,6 +1324,15 @@ public class ApiClient extends HttpClient {
 
 							@Override
 							public void error(Exception e) {
+								ApiCallback callback = ApiClient.this.callback.get();
+
+								if (debug) {
+									e.printStackTrace();
+								}
+								if (callback != null) {
+									callback.error(e);
+								}
+								throw new RuntimeException(e);
 							}
 						}
 					);
