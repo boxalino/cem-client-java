@@ -54,9 +54,6 @@ public class ApiClient extends HttpClient {
 	/** Document builder factory */
 	private static final DocumentBuilderFactory dbf;
 
-	/** Document builder factory */
-	private static final DocumentBuilder db;
-
 	/** Proxy hidden headers */
 	private static final Set<String> hiddenProxyHeaders;
 
@@ -69,12 +66,6 @@ public class ApiClient extends HttpClient {
 		dbf.setIgnoringElementContentWhitespace(true);
 		dbf.setNamespaceAware(true);
 		dbf.setValidating(false);
-
-		try {
-			db =  dbf.newDocumentBuilder();
-		} catch (Exception e) {
-			throw new RuntimeException(e);
-		}
 
 		Set<String> headers = new TreeSet<String>();
 
@@ -715,7 +706,7 @@ public class ApiClient extends HttpClient {
 
 					@Override
 					public void parseResponse(InputStream is) throws Exception {
-						Element element = db.parse(new InputSource(is)).getDocumentElement();
+						Element element = dbf.newDocumentBuilder().parse(new InputSource(is)).getDocumentElement();
 
 						if (!element.getNodeName().equals("cem")) {
 							throw new IllegalStateException("invalid xml element: " + element.getNodeName());
@@ -794,7 +785,7 @@ public class ApiClient extends HttpClient {
 
 							@Override
 							public void parseResponse(InputStream is) throws Exception {
-								Element element = db.parse(new InputSource(is)).getDocumentElement();
+								Element element = dbf.newDocumentBuilder().parse(new InputSource(is)).getDocumentElement();
 
 								if (!element.getNodeName().equals("cem")) {
 									throw new IllegalStateException("invalid xml element: " + element.getNodeName());
