@@ -51,11 +51,11 @@ import com.boxalino.cem.client.json.JsonObject;
  * @author nitro
  */
 public class ApiClient extends HttpClient {
+	/** Proxy hidden headers */
+	protected static final Set<String> hiddenProxyHeaders;
+
 	/** Document builder factory */
 	private static final DocumentBuilderFactory dbf;
-
-	/** Proxy hidden headers */
-	private static final Set<String> hiddenProxyHeaders;
 
 	/** Static initializer */
 	static {
