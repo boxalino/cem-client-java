@@ -137,6 +137,9 @@ public class ApiClient extends HttpClient {
 		/** Page blocks */
 		public final Map<String, String> blocks;
 
+		/** Error if any */
+		public final Exception error;
+
 
 		/**
 		 * Constructor.
@@ -156,6 +159,29 @@ public class ApiClient extends HttpClient {
 			this.results = Collections.emptyList();
 			this.recommendations = Collections.emptyList();
 			this.blocks = Collections.emptyMap();
+			this.error = new Exception("Remote API call failed");
+		}
+
+		/**
+		 * Constructor.
+		 *
+		 * @param error exception
+		 */
+		private Page(Exception error) {
+			this.apiVersion = "0.0.0";
+			this.apiStatus = false;
+			this.apiTime = 0.0;
+			this.context = "";
+			this.query = "";
+			this.resultOffset = 0;
+			this.resultTotal = 0;
+			this.resultPageIndex = 0;
+			this.resultPageCount = 0;
+			this.resultPageSize = 0;
+			this.results = Collections.emptyList();
+			this.recommendations = Collections.emptyList();
+			this.blocks = Collections.emptyMap();
+			this.error = error;
 		}
 
 		/**
@@ -221,6 +247,7 @@ public class ApiClient extends HttpClient {
 			this.results = Collections.unmodifiableList(results);
 			this.recommendations = Collections.unmodifiableList(recommendations);
 			this.blocks = Collections.unmodifiableMap(blocks);
+			this.error = null;
 		}
 
 
@@ -244,8 +271,31 @@ public class ApiClient extends HttpClient {
 				",resultPageSize=" + resultPageSize +
 				",results=" + results +
 				",recommendations=" + recommendations +
-				",blocks=" + blocks + "}"
+				",blocks=" + blocks +
+				",error=" + error + "}"
 			);
+		}
+
+
+		/**
+		 * Check if an error occured.
+		 *
+		 * @return true if an error occured
+		 */
+		public boolean hasError() {
+			return (this.error != null);
+		}
+
+		/**
+		 * Get error message.
+		 *
+		 * @return error message or null if none
+		 */
+		public String getError() {
+			if (this.error != null) {
+				return this.error.toString();
+			}
+			return null;
 		}
 
 
@@ -678,6 +728,8 @@ public class ApiClient extends HttpClient {
 	 * @return page content
 	 */
 	public Page loadPage(String uri, Map<String, String[]> parameters, HttpServletRequest request, final HttpServletResponse response) {
+		final AtomicReference<Page> page = new AtomicReference<Page>(new Page());
+
 		if (request != null && !(request instanceof HttpServletRequestDecoded)) {
 			request = new HttpServletRequestDecoded(request);
 		}
@@ -685,8 +737,6 @@ public class ApiClient extends HttpClient {
 
 		parameters.put("uri", new String [] { uri });
 		try {
-			final AtomicReference<Page> page = new AtomicReference<Page>();
-
 			postFields(
 				url + "/api/xml/page",
 				parameters,
@@ -724,10 +774,10 @@ public class ApiClient extends HttpClient {
 						if (callback != null) {
 							callback.error(e);
 						}
+						page.set(new Page(e));
 					}
 				}
 			);
-			return page.get();
 		} catch (Exception e) {
 			ApiCallback callback = this.callback.get();
 
@@ -738,7 +788,7 @@ public class ApiClient extends HttpClient {
 				callback.error(e);
 			}
 		}
-		return new Page();
+		return page.get();
 	}
 
 	/**
@@ -764,7 +814,7 @@ public class ApiClient extends HttpClient {
 			new Callable<Page>() {
 				@Override
 				public Page call() throws Exception {
-					final AtomicReference<Page> page = new AtomicReference<Page>();
+					final AtomicReference<Page> page = new AtomicReference<Page>(new Page());
 
 					postFields(
 						url + "/api/xml/page",
@@ -803,7 +853,7 @@ public class ApiClient extends HttpClient {
 								if (callback != null) {
 									callback.error(e);
 								}
-								throw new RuntimeException(e);
+								page.set(new Page(e));
 							}
 						}
 					);
