@@ -495,6 +495,9 @@ public class ApiClient extends HttpClient {
 	/** Error callback */
 	public final AtomicReference<ApiCallback> callback = new AtomicReference<ApiCallback>();
 
+	/** Default servlet encoding for URI */
+	public String defaultServletUriEncoding = "ISO-8859-1";
+
 	/** Debug output (print exceptions to stderr) */
 	public boolean debug = true;
 
@@ -1585,7 +1588,7 @@ public class ApiClient extends HttpClient {
 
 			if (value != null) {
 				try {
-					return new String(value.getBytes("ISO-8859-1"), "UTF-8");
+					return new String(value.getBytes(ApiClient.this.defaultServletUriEncoding));
 				} catch (UnsupportedEncodingException e) { }
 			}
 			return value;
@@ -1607,7 +1610,7 @@ public class ApiClient extends HttpClient {
 
 					for (int i = 0; i < tmp2.length; i++) {
 						try {
-							tmp2[i] = new String(entry.getValue()[i].getBytes("ISO-8859-1"), "UTF-8");
+							tmp2[i] = new String(entry.getValue()[i].getBytes(ApiClient.this.defaultServletUriEncoding));
 						} catch (UnsupportedEncodingException e) {
 							tmp2[i] = entry.getValue()[i];
 						}
@@ -1631,7 +1634,7 @@ public class ApiClient extends HttpClient {
 
 				for (int i = 0; i < values.length; i++) {
 					try {
-						tmp[i] = new String(values[i].getBytes("ISO-8859-1"), "UTF-8");
+						tmp[i] = new String(values[i].getBytes(ApiClient.this.defaultServletUriEncoding));
 					} catch (UnsupportedEncodingException e) {
 						tmp[i] = values[i];
 					}
