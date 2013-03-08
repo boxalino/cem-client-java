@@ -1,8 +1,8 @@
 <?xml version="1.0" ?>
 
 <project name="CEM-API-CLIENT" default="help" basedir=".">
-	<target name="build" depends="clean, compile, clean-jar, jar, proguard"/>
-	<target name="clean-all" depends="clean, clean-jar"/>
+	<target name="build" depends="clean, compile, clean-jar, jar, proguard, public-doc"/>
+	<target name="clean-all" depends="clean, clean-jar, clean-doc"/>
 
 
 	<target name="config">
@@ -69,9 +69,7 @@
 
 
 	<target name="clean" depends="config">
-		<delete includeemptydirs="true" failonerror="false">
-			<fileset dir="classes" includes="**/*"/>
-		</delete>
+		<delete dir="classes"/>
 	</target>
 	<target name="compile" depends="config">
 		<echo>compiling ${ant.project.name}...</echo>
@@ -89,10 +87,7 @@
 	</target>
 
 	<target name="clean-jar" depends="config">
-		<delete file="build/boxalino-cem-client.jar"/>
-		<delete file="build/boxalino-cem-client.map"/>
-		<delete file="build/boxalino-cem-client.usg"/>
-		<delete file="build/boxalino-cem-client-debug.jar"/>
+		<delete dir="build"/>
 	</target>
 	<target name="jar" depends="clean-jar">
 		<mkdir dir="build" />
@@ -101,7 +96,7 @@
 		</jar>
 	</target>
 	<target name="proguard" depends="jar">
-		<taskdef resource="proguard/ant/task.properties" classpath="../../../base/ant/proguard.jar" />
+		<taskdef resource="proguard/ant/task.properties" classpath="ant/proguard.jar" />
 
 		<proguard
 			verbose="true"
@@ -183,13 +178,10 @@
 	</target>
 
 	<target name="clean-doc" depends="config">
-		<delete includeemptydirs="true" failonerror="false">
-			<fileset dir="docs/javadoc" includes="**/*"/>
-		</delete>
+		<delete dir="docs"/>
 	</target>
 	<target name="public-doc" depends="clean-doc">
 		<mkdir dir="docs" />
-		<mkdir dir="docs/javadoc" />
 		<path id="javadocpath">
 			<pathelement path="classes"/>
 			<fileset dir="lib">
@@ -197,7 +189,7 @@
 			</fileset>
 		</path>
 		<javadoc noindex="true" notree="true" nohelp="true" public="yes"
-				destdir="docs/javadoc"
+				destdir="docs"
 				classpathref="javadocpath"
 				Windowtitle="Boxalino CEM API"
 				Header="Boxalino CEM API"
