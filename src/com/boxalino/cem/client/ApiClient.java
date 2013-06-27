@@ -1020,6 +1020,64 @@ public class ApiClient extends HttpClient {
 
 
 	/**
+	 * Track when a user logs in.
+	 *
+	 * @param profileId profile identifier
+	 * @param context page context
+	 * @return true on success
+	 */
+	public boolean trackLogin(String profileId, PageContext context) {
+		return trackLogin(profileId, (HttpServletRequest)context.getRequest());
+	}
+
+	/**
+	 * Track when a user logs in (async).
+	 *
+	 * @param profileId profile identifier
+	 * @param context page context
+	 * @return true on success
+	 */
+	public Future<Boolean> trackLoginAsync(String profileId, PageContext context) {
+		return trackLoginAsync(profileId, (HttpServletRequest)context.getRequest());
+	}
+
+
+	/**
+	 * Track when a user logs in.
+	 *
+	 * @param profileId profile identifier
+	 * @param request optional http request
+	 * @return true on success
+	 */
+	public boolean trackLogin(String profileId, HttpServletRequest request) {
+		Map<String, String> description = new LinkedHashMap<String, String>();
+
+		description.put("id", profileId);
+		if (request != null && !(request instanceof HttpServletRequestDecoded)) {
+			request = new HttpServletRequestDecoded(request);
+		}
+		return trackEvent("login", description, request);
+	}
+
+	/**
+	 * Track when a user logs in (async).
+	 *
+	 * @param profileId profile identifier
+	 * @param request optional http request
+	 * @return true on success
+	 */
+	public Future<Boolean> trackLoginAsync(String profileId, HttpServletRequest request) {
+		Map<String, String> description = new LinkedHashMap<String, String>();
+
+		description.put("id", profileId);
+		if (request != null && !(request instanceof HttpServletRequestDecoded)) {
+			request = new HttpServletRequestDecoded(request);
+		}
+		return trackEventAsync("categoryView", description, request);
+	}
+
+
+	/**
 	 * Track when an item is added to the basket.
 	 *
 	 * @param item item descriptor
