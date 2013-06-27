@@ -1073,7 +1073,7 @@ public class ApiClient extends HttpClient {
 		if (request != null && !(request instanceof HttpServletRequestDecoded)) {
 			request = new HttpServletRequestDecoded(request);
 		}
-		return trackEventAsync("categoryView", description, request);
+		return trackEventAsync("login", description, request);
 	}
 
 
