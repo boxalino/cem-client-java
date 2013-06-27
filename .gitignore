@@ -1,3 +1,7 @@
 /build/
 /classes/
 /docs/
+/.settings
+/.buildpath
+/.classpath
+/.project
